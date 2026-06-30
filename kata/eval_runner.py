@@ -8,16 +8,13 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kata.baseline import generate_baseline_prompt_from_repository
 from kata.benchmarks import resolve_eval_pack_path
 from kata.config import (
-    resolve_registry_url,
     resolve_validator_api_base,
     resolve_validator_api_key,
     resolve_validator_model,
 )
 from kata.eval_pack import EvalPackValidationResult, discover_eval_pack_tasks
-from kata.generator import generate_prompt_from_repository
 from kata.provenance import EVALUATOR_VERSION, pool_fingerprint
 from kata.repository import resolve_repository
 from kata.scoring import read_task_weight, score_variant_run
@@ -82,62 +79,6 @@ class ArtifactVariant:
     name: str
     files: dict[str, str]
     entrypoint: str
-
-
-def run_eval(
-    *,
-    repo_ref: str,
-    eval_pack_path: str,
-    mode: str,
-    agent_command: str,
-    registry_url: str | None = None,
-    output_root: str | None = None,
-    agent_timeout_seconds: int | None = None,
-    checks_timeout_seconds: int | None = None,
-) -> EvalRunSummary:
-    eval_pack_root = resolve_eval_pack_path(eval_pack_path)
-    validations = discover_eval_pack_tasks(eval_pack_path)
-    invalid = [result for result in validations if not result.is_valid]
-    if invalid:
-        invalid_names = ", ".join(result.root.name for result in invalid)
-        raise ValueError(
-            "Eval pack is invalid. Run `kata eval-pack validate` first. "
-            f"Invalid task directories: {invalid_names}"
-        )
-
-    resolved_registry_url = resolve_registry_url(registry_url)
-    with resolve_repository(repo_ref) as repo:
-        artifact_variants = [
-            ArtifactVariant(
-                name="baseline",
-                files={"baseline.md": generate_baseline_prompt_from_repository(repo, mode)},
-                entrypoint="baseline.md",
-            ),
-            ArtifactVariant(
-                name="generated",
-                files={
-                    "generated.md": generate_prompt_from_repository(
-                        repo, mode, resolved_registry_url
-                    )
-                },
-                entrypoint="generated.md",
-            ),
-        ]
-    return run_artifact_variants(
-        repo_ref=repo_ref,
-        eval_pack_path=str(eval_pack_root),
-        mode=mode,
-        agent_command=agent_command,
-        artifact_variants=artifact_variants,
-        output_root=output_root,
-        agent_timeout_seconds=agent_timeout_seconds,
-        checks_timeout_seconds=checks_timeout_seconds,
-        run_label=None,
-        run_kind="eval",
-        metadata={"reference_workflow": "baseline-vs-generated"},
-    )
-
-
 def run_artifact_variants(
     *,
     repo_ref: str,
@@ -478,11 +419,12 @@ def build_env(
     resolved_artifact = str(artifact_path.resolve())
     env["KATA_ARTIFACT_FILE"] = resolved_artifact
     env["KATA_ARTIFACT_DIR"] = str(artifact_path.parent.resolve())
-    if artifact_path.suffix == ".py":
-        env["KATA_AGENT_FILE"] = resolved_artifact
-        env["KATA_AGENT_BUNDLE_DIR"] = str(artifact_path.parent.resolve())
-    else:
-        env["KATA_PROMPT_FILE"] = resolved_artifact
+    if artifact_path.suffix != ".py":
+        raise ValueError(
+            "Kata competition artifacts must use a Python agent entrypoint."
+        )
+    env["KATA_AGENT_FILE"] = resolved_artifact
+    env["KATA_AGENT_BUNDLE_DIR"] = str(artifact_path.parent.resolve())
     env["KATA_MODE"] = mode
     env["KATA_REPO_REF"] = repo_ref
     env["KATA_REPO_SNAPSHOT"] = str(repo_snapshot.resolve())
@@ -515,69 +457,6 @@ def copy_repository(source: Path, target: Path) -> None:
 
 def write_summary(path: Path, summary: EvalRunSummary) -> None:
     path.write_text(json.dumps(asdict(summary), indent=2) + "\n", encoding="utf-8")
-
-
-def run_prompt_variants(
-    *,
-    repo_ref: str,
-    eval_pack_path: str,
-    mode: str,
-    agent_command: str,
-    prompt_variants: list[tuple[str, str | None]],
-    task_names: list[str] | None = None,
-    output_root: str | None = None,
-    agent_timeout_seconds: int | None = None,
-    checks_timeout_seconds: int | None = None,
-    run_label: str | None = None,
-    run_kind: str = "eval",
-    metadata: dict[str, str] | None = None,
-) -> EvalRunSummary:
-    with resolve_repository(repo_ref) as repo:
-        artifact_variants = [
-            ArtifactVariant(
-                name=variant_name,
-                files={
-                    f"{variant_name}.md": resolve_prompt_text(
-                        variant_name=variant_name,
-                        prompt_value=prompt_value,
-                        repo=repo,
-                        mode=mode,
-                    )
-                },
-                entrypoint=f"{variant_name}.md",
-            )
-            for variant_name, prompt_value in prompt_variants
-        ]
-    return run_artifact_variants(
-        repo_ref=repo_ref,
-        eval_pack_path=eval_pack_path,
-        mode=mode,
-        agent_command=agent_command,
-        artifact_variants=artifact_variants,
-        task_names=task_names,
-        output_root=output_root,
-        agent_timeout_seconds=agent_timeout_seconds,
-        checks_timeout_seconds=checks_timeout_seconds,
-        run_label=run_label,
-        run_kind=run_kind,
-        metadata=metadata,
-    )
-
-
-def resolve_prompt_text(
-    *,
-    variant_name: str,
-    prompt_value: str | None,
-    repo: object,
-    mode: str,
-) -> str:
-    if variant_name == "baseline" and prompt_value is None:
-        return generate_baseline_prompt_from_repository(repo, mode)
-    if variant_name == "generated":
-        return generate_prompt_from_repository(repo, mode, prompt_value)
-    if prompt_value is None:
-        raise ValueError(f"Prompt text is required for variant: {variant_name}")
-    return prompt_value
 
 
 def select_task_validations(

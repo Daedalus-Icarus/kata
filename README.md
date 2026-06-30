@@ -269,22 +269,6 @@ At minimum, that means:
 
 ## Quickstart
 
-Generate a repo-specific initialization prompt used to seed a starting agent:
-
-```bash
-uv run kata generate \
-  --repo /path/to/target-repo \
-  --mode contributor
-```
-
-Generate the fixed baseline initialization prompt:
-
-```bash
-uv run kata baseline \
-  --repo /path/to/target-repo \
-  --mode contributor
-```
-
 Validate the benchmark pack:
 
 ```bash
@@ -292,20 +276,23 @@ uv run kata eval-pack validate \
   --path <repo-pack>
 ```
 
-Run a baseline-vs-generated eval:
+Initialize the lane frontier for the repo and mode:
 
 ```bash
-uv run kata eval \
+uv run kata frontier init \
   --repo /path/to/target-repo \
   --eval-pack <repo-pack> \
-  --mode contributor \
-  --agent-command "$PWD/scripts/run_codex_eval.sh"
+  --mode contributor
 ```
 
-Render an eval report:
+Challenge the current frontier with a challenger agent bundle:
 
 ```bash
-uv run kata report --run <run-id>
+uv run kata challenge \
+  --eval-pack <repo-pack> \
+  --mode contributor \
+  --candidate-agent path/to/agent.py \
+  --agent-command "$PWD/scripts/run_python_agent_eval.sh"
 ```
 
 ## Submission Workflow
@@ -412,20 +399,13 @@ uv run kata frontier promote \
 
 ## Real Agent Commands
 
-This repo includes two adapter scripts:
+This repo includes the Python agent adapter used by the current competition
+flow:
 
-- `scripts/run_codex_eval.sh`
-- `scripts/run_claude_eval.sh`
+- `scripts/run_python_agent_eval.sh`
 
-Optional model overrides:
-
-```bash
-KATA_CODEX_MODEL=o3 uv run kata eval ...
-KATA_CLAUDE_MODEL=sonnet uv run kata eval ...
-```
-
-These adapters assume the corresponding CLI is already installed and
-authenticated.
+That runner loads `agent.py`, passes the validator-owned runtime settings, and
+applies the returned patch inside the eval workspace.
 
 ## Open-Source Status
 
@@ -440,7 +420,7 @@ What is already solid:
 - evaluator-version and benchmark-provenance recording
 - validator-owned `Qwen3-32B` runtime policy
 - submission anti-cheat and bundle-policy validation
-- initialization prompt bootstrapping for seeded agents
+- seeded baseline/frontier agent initialization
 - regression tests for evaluator behavior
 
 What is still planned:

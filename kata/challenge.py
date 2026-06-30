@@ -70,6 +70,8 @@ def run_frontier_challenge(
     manifest = load_frontier_manifest(eval_pack_path)
     mode_config = resolve_mode(manifest, mode)
     candidate_path = Path(candidate_artifact_path).expanduser().resolve()
+    if candidate_path.is_file():
+        candidate_path = candidate_path.parent
     output_base = Path(output_root) if output_root else Path("runs")
     challenge_run_id = build_challenge_id(eval_pack_root.name, mode)
     challenge_root = output_base / challenge_run_id

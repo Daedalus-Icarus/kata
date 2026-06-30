@@ -4,7 +4,6 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from kata.baseline import generate_baseline_prompt
 from kata.benchmarks import render_benchmark_registry, resolve_benchmark_registry
 from kata.challenge import (
     load_challenge_summary,
@@ -16,7 +15,6 @@ from kata.eval_pack import (
     init_eval_pack,
     render_validation_result,
 )
-from kata.eval_runner import run_eval
 from kata.frontier import (
     DEFAULT_PROMOTION_MARGIN_POINTS,
     init_frontier,
@@ -25,7 +23,6 @@ from kata.frontier import (
     render_frontier_json,
     render_frontier_manifest,
 )
-from kata.generator import generate_prompt
 from kata.reporting import render_report
 from kata.submissions import (
     decide_submission_action,
@@ -51,86 +48,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version="kata 0.1.0")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
-
-    generate = subparsers.add_parser(
-        "generate",
-        help="Generate an initial repo-specific prompt from repo sources.",
-    )
-    generate.add_argument("--repo", required=True, help="Path or URL of the target repo.")
-    generate.add_argument(
-        "--mode",
-        choices=["contributor", "reviewer"],
-        default="contributor",
-        help="Prompt mode to initialize.",
-    )
-    generate.add_argument(
-        "--registry-url",
-        default=None,
-        help="Optional SN74 registry JSON URL. Defaults to env or built-in live test-branch URL.",
-    )
-    generate.set_defaults(handler=handle_generate)
-
-    baseline = subparsers.add_parser(
-        "baseline",
-        help="Create or print the fixed generic baseline prompt.",
-    )
-    baseline.add_argument("--repo", required=True, help="Path or URL of the target repo.")
-    baseline.add_argument(
-        "--mode",
-        choices=["contributor", "reviewer"],
-        default="contributor",
-        help="Baseline prompt mode to generate.",
-    )
-    baseline.set_defaults(handler=handle_baseline)
-
-    eval_cmd = subparsers.add_parser(
-        "eval",
-        help="Run the baseline-vs-generated reference eval workflow.",
-    )
-    eval_cmd.add_argument("--repo", required=True, help="Path or URL of the target repo.")
-    eval_cmd.add_argument(
-        "--eval-pack",
-        required=True,
-        help="Path to the repo eval pack or a pack id under the benchmark registry.",
-    )
-    eval_cmd.add_argument(
-        "--mode",
-        choices=["contributor", "reviewer"],
-        default="contributor",
-        help="Prompt mode to compare.",
-    )
-    eval_cmd.add_argument(
-        "--agent-command",
-        required=True,
-        help=(
-            "Shell command used to run the agent in each workspace. It runs with "
-            "KATA_WORKSPACE, KATA_PROMPT_FILE, KATA_TASK_FILE, and "
-            "other eval-pack file paths set."
-        ),
-    )
-    eval_cmd.add_argument(
-        "--registry-url",
-        default=None,
-        help="Optional SN74 registry JSON URL for generated prompts.",
-    )
-    eval_cmd.add_argument(
-        "--output-root",
-        default=None,
-        help="Optional base directory for eval run artifacts. Defaults to ./runs.",
-    )
-    eval_cmd.add_argument(
-        "--agent-timeout-seconds",
-        type=int,
-        default=None,
-        help="Optional timeout for each agent-command run.",
-    )
-    eval_cmd.add_argument(
-        "--checks-timeout-seconds",
-        type=int,
-        default=None,
-        help="Optional timeout for each checks.sh run.",
-    )
-    eval_cmd.set_defaults(handler=handle_eval)
 
     frontier = subparsers.add_parser(
         "frontier",
@@ -222,7 +139,10 @@ def build_parser() -> argparse.ArgumentParser:
     challenge.add_argument(
         "--candidate-agent",
         required=True,
-        help="Path to the challenger agent file to evaluate against the current frontier.",
+        help=(
+            "Path to the challenger agent bundle directory or its `agent.py` "
+            "entrypoint."
+        ),
     )
     challenge.add_argument(
         "--agent-command",
@@ -478,47 +398,6 @@ def build_parser() -> argparse.ArgumentParser:
     submission_decide.set_defaults(handler=handle_submission_decide)
 
     return parser
-
-
-def handle_generate(args: argparse.Namespace) -> int:
-    print(generate_prompt(args.repo, args.mode, args.registry_url))
-    return 0
-
-
-def handle_baseline(args: argparse.Namespace) -> int:
-    print(generate_baseline_prompt(args.repo, args.mode))
-    return 0
-
-
-def handle_eval(args: argparse.Namespace) -> int:
-    summary = run_eval(
-        repo_ref=args.repo,
-        eval_pack_path=args.eval_pack,
-        mode=args.mode,
-        agent_command=args.agent_command,
-        registry_url=args.registry_url,
-        output_root=args.output_root,
-        agent_timeout_seconds=args.agent_timeout_seconds,
-        checks_timeout_seconds=args.checks_timeout_seconds,
-    )
-    print(
-        f"Created eval run: {summary.run_id}\n"
-        f"Run kind: {summary.run_kind}\n"
-        f"Mode: {summary.mode}\n"
-        f"Requested repo: {summary.requested_repo_ref}\n"
-        f"Eval pack: {summary.eval_pack}\n"
-        f"Evaluator version: {summary.metadata.get('evaluator_version', 'unknown')}\n"
-        f"Task pool fingerprint: {summary.metadata.get('task_pool_fingerprint', 'unknown')}"
-    )
-    for task in summary.tasks:
-        print(f"Task: {task.task_id}")
-        print(f"Repo ref: {task.task_repo_ref}")
-        for variant in task.variants:
-            print(
-                f"- {variant.name}: agent_exit={variant.agent_exit_code}, "
-                f"checks_exit={variant.checks_exit_code}, success={variant.success}"
-            )
-    return 0
 
 
 def handle_frontier_init(args: argparse.Namespace) -> int:
