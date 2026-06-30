@@ -330,6 +330,31 @@ def test_validate_submission_rejects_unexpected_bundle_file(
     assert "Submission bundle contains unsupported files: notes.txt" in result.reasons
 
 
+def test_validate_submission_ignores_local_python_cache_artifacts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry_root = tmp_path / "registry"
+    write_registry(registry_root)
+    write_frontier_pack(registry_root, "example__repo", "/tmp/repo")
+    monkeypatch.setenv("KATA_BENCHMARKS_ROOT", str(registry_root))
+    repo_root = tmp_path / "Kata"
+    submission_root = init_submission(
+        repo_pack="example__repo",
+        mode="contributor",
+        submission_id="miner-cache",
+        output_root=str(repo_root / "submissions"),
+    )
+    (submission_root / "agent.py").write_text(VALID_AGENT, encoding="utf-8")
+    pycache_root = submission_root / "__pycache__"
+    pycache_root.mkdir()
+    (pycache_root / "agent.cpython-312.pyc").write_bytes(b"cache")
+
+    result = validate_submission(str(submission_root))
+
+    assert result.is_valid
+
+
 def test_validate_submission_rejects_frontier_copycat_agent(
     tmp_path: Path,
     monkeypatch,

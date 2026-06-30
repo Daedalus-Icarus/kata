@@ -10,6 +10,8 @@ AGENT_MANIFEST_FILENAME = "agent_manifest.json"
 HELPERS_DIRNAME = "helpers"
 AGENT_MANIFEST_SCHEMA_VERSION = 1
 DEFAULT_AGENT_RUNTIME = "python"
+IGNORED_BUNDLE_DIRS = {"__pycache__"}
+IGNORED_BUNDLE_SUFFIXES = {".pyc", ".pyo"}
 
 
 @dataclass(frozen=True)
@@ -85,6 +87,8 @@ def collect_bundle_relative_paths(root: Path) -> list[str]:
     for file_path in sorted(root.rglob("*")):
         if not file_path.is_file():
             continue
+        if should_ignore_bundle_path(file_path.relative_to(root)):
+            continue
         relative_path = file_path.relative_to(root).as_posix()
         if is_allowed_bundle_relative_path(relative_path):
             relative_paths.append(relative_path)
@@ -96,12 +100,23 @@ def find_unexpected_bundle_paths(root: Path) -> list[str]:
     for file_path in sorted(root.rglob("*")):
         if not file_path.is_file():
             continue
-        relative_path = file_path.relative_to(root).as_posix()
+        relative = file_path.relative_to(root)
+        if should_ignore_bundle_path(relative):
+            continue
+        relative_path = relative.as_posix()
         if relative_path == "submission.json":
             continue
         if not is_allowed_bundle_relative_path(relative_path):
             unexpected.append(relative_path)
     return unexpected
+
+
+def should_ignore_bundle_path(relative_path: Path) -> bool:
+    if any(part in IGNORED_BUNDLE_DIRS for part in relative_path.parts):
+        return True
+    if relative_path.suffix in IGNORED_BUNDLE_SUFFIXES:
+        return True
+    return False
 
 
 def load_bundle_files(root: Path) -> dict[str, str]:
@@ -127,4 +142,3 @@ def replace_bundle_contents(destination_root: Path, files: dict[str, str]) -> No
                 child.unlink()
     destination_root.mkdir(parents=True, exist_ok=True)
     write_bundle_files(destination_root, files)
-

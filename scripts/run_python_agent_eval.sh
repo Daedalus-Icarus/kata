@@ -18,6 +18,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -45,6 +46,17 @@ def apply_patch(repo_path: Path, patch_text: str) -> None:
         handle.write(normalized + "\n")
         patch_path = Path(handle.name)
     try:
+        created_temp_git_dir = False
+        git_dir = repo_path / ".git"
+        if not git_dir.exists():
+            subprocess.run(
+                ["git", "init", "-q"],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            created_temp_git_dir = True
         completed = subprocess.run(
             ["git", "apply", "--whitespace=nowarn", str(patch_path)],
             cwd=str(repo_path),
@@ -55,6 +67,8 @@ def apply_patch(repo_path: Path, patch_text: str) -> None:
         if completed.returncode != 0:
             raise RuntimeError(completed.stderr.strip() or "git apply failed")
     finally:
+        if "created_temp_git_dir" in locals() and created_temp_git_dir:
+            shutil.rmtree(repo_path / ".git", ignore_errors=True)
         patch_path.unlink(missing_ok=True)
 
 
