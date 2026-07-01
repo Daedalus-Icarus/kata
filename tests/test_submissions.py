@@ -8,6 +8,7 @@ from kata.agent_bundle import (
     AGENT_MANIFEST_FILENAME,
     write_agent_manifest,
 )
+from kata.challenge import current_primary_pool_fingerprint
 from kata.frontier import (
     FRONTIER_SCHEMA_VERSION,
     PRIMARY_SELECTION_RANDOM_LIVE,
@@ -201,6 +202,36 @@ def test_validate_submission_accepts_scoped_submission_pr(
 
     assert result.is_valid
     assert result.reasons == []
+
+
+def test_validate_submission_rejects_symlink_before_reading_target(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry_root = tmp_path / "registry"
+    write_registry(registry_root)
+    write_frontier_pack(registry_root, "example__repo", "/tmp/repo")
+    monkeypatch.setenv("KATA_BENCHMARKS_ROOT", str(registry_root))
+    repo_root = tmp_path / "Kata"
+    submission_root = init_submission(
+        repo_pack="example__repo",
+        mode="contributor",
+        submission_id="miner-symlink",
+        output_root=str(repo_root / "submissions"),
+    )
+    outside_target = tmp_path / "outside_agent.py"
+    outside_target.write_text(
+        "KATA_VALIDATOR_API_KEY\nthis is not valid python\n",
+        encoding="utf-8",
+    )
+    agent_path = submission_root / "agent.py"
+    agent_path.unlink()
+    agent_path.symlink_to(outside_target)
+
+    result = validate_submission(str(submission_root))
+
+    assert not result.is_valid
+    assert result.reasons == ["Submission bundle must not contain symlinks: agent.py"]
     assert result.off_scope_paths == []
 
 
@@ -861,7 +892,7 @@ def test_verify_submission_result_detects_validator_model_change(
     assert "Challenge result is stale because the validator model has changed." in result.reasons
 
 
-def test_verify_submission_result_detects_public_pool_growth_in_random_mode(
+def test_verify_submission_result_detects_selected_task_change_in_random_mode(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -921,11 +952,41 @@ def test_verify_submission_result_detects_public_pool_growth_in_random_mode(
     summary_payload["primary_pool_fingerprint"] = pool_fingerprint([pack_root / "task-a"])
     summary_path = tmp_path / "challenge_summary.json"
     summary_path.write_text(json.dumps(summary_payload) + "\n", encoding="utf-8")
+    (pack_root / "task-a" / "task.md").write_text("# changed task\n", encoding="utf-8")
 
     result = verify_submission_result(str(submission_root), str(summary_path))
 
     assert not result.benchmark_is_current
     assert "Challenge result is stale because the benchmark lane has changed." in result.reasons
+
+
+def test_random_live_primary_fingerprint_uses_selected_tasks(tmp_path: Path) -> None:
+    registry_root = tmp_path / "registry"
+    pack_root = write_frontier_pack(registry_root, "example__repo", "/tmp/repo")
+    write_eval_task(pack_root / "task-b")
+    mode_config = FrontierModeConfig(
+        baseline_artifact=str((pack_root / "agents" / "contributor" / "baseline").resolve()),
+        frontier_artifact=str((pack_root / "agents" / "contributor" / "frontier").resolve()),
+        primary_tasks=[],
+        primary_task_count=1,
+        primary_selection=PRIMARY_SELECTION_RANDOM_LIVE,
+        holdout_tasks=[],
+    )
+
+    task_a_fingerprint = current_primary_pool_fingerprint(
+        str(pack_root),
+        mode_config,
+        selected_task_ids=["task-a"],
+    )
+    task_b_fingerprint = current_primary_pool_fingerprint(
+        str(pack_root),
+        mode_config,
+        selected_task_ids=["task-b"],
+    )
+
+    assert task_a_fingerprint == pool_fingerprint([pack_root / "task-a"])
+    assert task_b_fingerprint == pool_fingerprint([pack_root / "task-b"])
+    assert task_a_fingerprint != task_b_fingerprint
 
 
 def test_decide_submission_action_returns_merge_for_verified_winner(

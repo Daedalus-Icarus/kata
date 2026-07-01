@@ -103,3 +103,36 @@ def test_discover_live_eval_pack_tasks_filters_non_live_children(tmp_path: Path)
     results = discover_live_eval_pack_tasks(str(tmp_path))
 
     assert [result.root.name for result in results] == ["task-live"]
+
+
+def test_malformed_benchkit_metadata_marks_task_invalid_without_crashing(
+    tmp_path: Path,
+) -> None:
+    task = tmp_path / "task-bad-metadata"
+    task.mkdir(parents=True)
+    write_eval_file(
+        task,
+        "task.md",
+        "# Eval Task: demo\n\n## Goal\n- Add a missing CLI flag to export JSON output.\n",
+    )
+    write_eval_file(task, "repo_ref.txt", "https://github.com/example/repo.git@main\n")
+    write_eval_file(
+        task,
+        "checks.sh",
+        "#!/usr/bin/env bash\nset -euo pipefail\npython -m pytest tests/test_cli.py\n",
+    )
+    write_eval_file(
+        task,
+        "rubric.md",
+        "# Rubric\n\n## Pass Conditions\n- The new flag writes valid JSON to stdout.\n",
+    )
+    write_eval_file(task, "allowed_paths.txt", "src/\n")
+    write_eval_file(task, "forbidden_paths.txt", "eval/\n")
+    (task / "benchkit.json").write_text("{not-json\n", encoding="utf-8")
+
+    all_results = discover_live_eval_pack_tasks(str(tmp_path))
+    result = validate_eval_pack(str(task))
+
+    assert all_results == []
+    assert not result.is_valid
+    assert result.invalid_files == ["benchkit.json"]

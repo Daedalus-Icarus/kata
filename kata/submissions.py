@@ -259,6 +259,24 @@ def validate_submission(
             metadata=None,
         )
 
+    symlink_paths = find_bundle_symlink_paths(descriptor.root)
+    if symlink_paths:
+        reasons.append(
+            "Submission bundle must not contain symlinks: " + ", ".join(symlink_paths)
+        )
+        return SubmissionValidationResult(
+            submission_path=str(descriptor.root),
+            repo_pack=descriptor.repo_pack,
+            mode=descriptor.mode,
+            submission_id=descriptor.submission_id,
+            agent_path=str(descriptor.agent_path),
+            metadata_path=str(descriptor.metadata_path),
+            changed_paths=normalized_changed,
+            off_scope_paths=off_scope_paths,
+            reasons=dedupe(reasons),
+            metadata=None,
+        )
+
     metadata_path = descriptor.metadata_path
     agent_path = descriptor.agent_path
     agent_manifest_path = descriptor.agent_manifest_path
@@ -468,6 +486,7 @@ def verify_submission_result(
     current_primary_fingerprint = current_primary_pool_fingerprint(
         validation.metadata.repo_pack,
         mode_config,
+        selected_task_ids=summary.primary.task_ids,
     )
     current_holdout_fingerprint = current_holdout_pool_fingerprint(
         validation.metadata.repo_pack,
@@ -1068,7 +1087,9 @@ def find_bundle_relative_paths(root: Path) -> list[str]:
     relative_paths = [
         path.relative_to(root).as_posix()
         for path in sorted(root.rglob("*"))
-        if path.is_file() and is_allowed_bundle_relative_path(path.relative_to(root).as_posix())
+        if not path.is_symlink()
+        and path.is_file()
+        and is_allowed_bundle_relative_path(path.relative_to(root).as_posix())
     ]
     return relative_paths
 

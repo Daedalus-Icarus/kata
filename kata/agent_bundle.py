@@ -85,7 +85,7 @@ def is_allowed_bundle_relative_path(relative_path: str) -> bool:
 def collect_bundle_relative_paths(root: Path) -> list[str]:
     relative_paths: list[str] = []
     for file_path in sorted(root.rglob("*")):
-        if not file_path.is_file():
+        if file_path.is_symlink() or not file_path.is_file():
             continue
         if should_ignore_bundle_path(file_path.relative_to(root)):
             continue
@@ -98,7 +98,7 @@ def collect_bundle_relative_paths(root: Path) -> list[str]:
 def find_unexpected_bundle_paths(root: Path) -> list[str]:
     unexpected: list[str] = []
     for file_path in sorted(root.rglob("*")):
-        if not file_path.is_file():
+        if file_path.is_symlink() or not file_path.is_file():
             continue
         relative = file_path.relative_to(root)
         if should_ignore_bundle_path(relative):

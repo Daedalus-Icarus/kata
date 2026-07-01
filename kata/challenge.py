@@ -90,6 +90,7 @@ def run_frontier_challenge(
     current_primary_fingerprint = current_primary_pool_fingerprint(
         eval_pack_path,
         mode_config,
+        selected_task_ids=selected_primary_tasks,
     )
 
     primary_eval = run_artifact_variants(
@@ -438,14 +439,32 @@ def resolve_primary_task_ids(
 def current_primary_pool_fingerprint(
     eval_pack_path: str,
     mode_config: FrontierModeConfig,
+    *,
+    selected_task_ids: list[str] | None = None,
 ) -> str | None:
+    eval_pack_root = resolve_eval_pack_path(eval_pack_path)
     if mode_config.primary_selection == PRIMARY_SELECTION_RANDOM_LIVE:
+        if selected_task_ids is not None:
+            if not selected_task_ids:
+                return None
+            return pool_fingerprint(
+                [
+                    eval_pack_root / validate_selected_task_id(task_id)
+                    for task_id in selected_task_ids
+                ]
+            )
         validations = discover_live_eval_pack_tasks(eval_pack_path)
         return pool_fingerprint([result.root for result in validations]) if validations else None
     if not mode_config.primary_tasks:
         return None
-    eval_pack_root = resolve_eval_pack_path(eval_pack_path)
     return pool_fingerprint([eval_pack_root / task_id for task_id in mode_config.primary_tasks])
+
+
+def validate_selected_task_id(task_id: str) -> str:
+    task_path = Path(task_id)
+    if task_path.is_absolute() or task_path.name != task_id or task_id in {"", ".", ".."}:
+        raise ValueError(f"Invalid challenge task id: {task_id}")
+    return task_id
 
 
 def current_holdout_pool_fingerprint(

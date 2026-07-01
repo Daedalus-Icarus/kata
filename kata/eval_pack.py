@@ -91,6 +91,12 @@ def validate_eval_pack(path: str) -> EvalPackValidationResult:
             validate_oracle_payload(load_oracle_payload(oracle_path))
         except ValueError:
             invalid_files.append(ORACLE_FILENAME)
+    benchkit_path = root / BENCHKIT_METADATA_FILENAME
+    if benchkit_path.exists():
+        try:
+            load_benchkit_metadata(benchkit_path)
+        except ValueError:
+            invalid_files.append(BENCHKIT_METADATA_FILENAME)
 
     return EvalPackValidationResult(
         root=root,
@@ -231,10 +237,23 @@ def task_is_live(path: Path) -> bool:
     metadata_path = path / BENCHKIT_METADATA_FILENAME
     if not metadata_path.exists():
         return True
-    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    try:
+        payload = load_benchkit_metadata(metadata_path)
+    except ValueError:
+        return False
     if not isinstance(payload, dict):
         return False
     return str(payload.get("status") or "") == LIVE_TASK_STATUS
+
+
+def load_benchkit_metadata(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid {BENCHKIT_METADATA_FILENAME}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{BENCHKIT_METADATA_FILENAME} must contain a JSON object.")
+    return payload
 
 
 def write_file(path: Path, content: str) -> None:
