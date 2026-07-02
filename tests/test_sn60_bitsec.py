@@ -9,9 +9,13 @@ import pytest
 from kata.evaluators.sn60_bitsec import (
     Sn60ReplicaContext,
     build_bitsec_execution_command,
+    build_default_execution_hook,
+    ensure_internal_agent_network,
     extract_evaluation_metrics,
     load_sn60_benchmark_project_keys,
     project_passes,
+    resolve_sn60_inference_api,
+    resolve_sn60_proxy_network,
     resolve_sn60_sandbox_source,
     run_sn60_bitsec_duel,
     sn60_synthetic_ids,
@@ -544,3 +548,158 @@ def test_build_bitsec_evaluation_command_quotes_interpolated_values(
     import ast
 
     ast.parse(script)
+
+
+def _completed(cmd, returncode=0, stdout="", stderr=""):
+    return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr=stderr)
+
+
+def test_resolve_sn60_inference_api_defaults_and_overrides(monkeypatch) -> None:
+    monkeypatch.delenv("KATA_SN60_INFERENCE_API", raising=False)
+    assert resolve_sn60_inference_api() == "http://bitsec_proxy:8000"
+    monkeypatch.setenv("KATA_SN60_INFERENCE_API", " http://secret-proxy:9000 ")
+    assert resolve_sn60_inference_api() == "http://secret-proxy:9000"
+
+
+def test_resolve_sn60_proxy_network_defaults_and_overrides(monkeypatch) -> None:
+    monkeypatch.delenv("KATA_SN60_PROXY_NETWORK", raising=False)
+    assert resolve_sn60_proxy_network() == "bitsec-net"
+    monkeypatch.setenv("KATA_SN60_PROXY_NETWORK", "kata-secret-net")
+    assert resolve_sn60_proxy_network() == "kata-secret-net"
+
+
+def test_build_bitsec_execution_command_uses_configured_endpoint(tmp_path: Path) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    benchmark_path = write_sandbox_source(sandbox_root)
+    source = resolve_sn60_sandbox_source(
+        sandbox_root=str(sandbox_root),
+        benchmark_file=str(benchmark_path),
+        sandbox_commit="commit-1",
+        scorer_version="ScaBenchScorerV2",
+    )
+    context = _make_context(tmp_path, source)
+
+    command = build_bitsec_execution_command(
+        context,
+        proxy_network="kata-secret-net",
+        inference_api="http://secret-proxy:9000",
+    )
+
+    assert "--network" in command
+    assert "kata-secret-net" in command
+    assert "INFERENCE_API=http://secret-proxy:9000" in command
+
+
+def test_ensure_internal_agent_network_creates_when_absent() -> None:
+    calls = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        if cmd[:3] == ["docker", "network", "inspect"]:
+            return _completed(cmd, returncode=1, stderr="Error: No such network: bitsec-net")
+        return _completed(cmd, returncode=0)
+
+    ensure_internal_agent_network("bitsec-net", run=fake_run)
+
+    assert ["docker", "network", "create", "--internal", "bitsec-net"] in calls
+
+
+def test_ensure_internal_agent_network_accepts_existing_internal() -> None:
+    calls = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return _completed(cmd, returncode=0, stdout="true\n")
+
+    ensure_internal_agent_network("bitsec-net", run=fake_run)
+
+    # Existing internal network: assert only, never create.
+    assert not any(cmd[:3] == ["docker", "network", "create"] for cmd in calls)
+
+
+def test_ensure_internal_agent_network_rejects_non_internal() -> None:
+    def fake_run(cmd, *args, **kwargs):
+        return _completed(cmd, returncode=0, stdout="false\n")
+
+    with pytest.raises(ValueError, match="permits external egress"):
+        ensure_internal_agent_network("bitsec-net", run=fake_run)
+
+
+def test_ensure_internal_agent_network_surfaces_inspect_errors() -> None:
+    def fake_run(cmd, *args, **kwargs):
+        return _completed(cmd, returncode=1, stderr="Cannot connect to the Docker daemon")
+
+    with pytest.raises(RuntimeError, match="Failed to inspect docker network"):
+        ensure_internal_agent_network("bitsec-net", run=fake_run)
+
+
+def test_default_execution_hook_asserts_internal_network_and_uses_endpoint(
+    tmp_path: Path, monkeypatch
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    benchmark_path = write_sandbox_source(sandbox_root)
+    source = resolve_sn60_sandbox_source(
+        sandbox_root=str(sandbox_root),
+        benchmark_file=str(benchmark_path),
+        sandbox_commit="commit-1",
+        scorer_version="ScaBenchScorerV2",
+    )
+    context = _make_context(tmp_path, source)
+    Path(context.report_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(context.report_path).write_text(
+        json.dumps({"success": True, "report": {"vulnerabilities": []}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("INFERENCE_API_KEY", "run-token")
+    monkeypatch.setenv("KATA_SN60_INFERENCE_API", "http://secret-proxy:9000")
+    monkeypatch.delenv("KATA_SN60_PROXY_NETWORK", raising=False)
+
+    calls = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        if cmd[:3] == ["docker", "network", "inspect"]:
+            return _completed(cmd, returncode=0, stdout="true\n")
+        return _completed(cmd, returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = build_default_execution_hook(source)(context)
+
+    assert result == {"success": True, "report": {"vulnerabilities": []}}
+    # The internal-network guarantee runs before the agent container starts.
+    assert any(cmd[:3] == ["docker", "network", "inspect"] for cmd in calls)
+    docker_run = next(cmd for cmd in calls if cmd[:2] == ["docker", "run"])
+    assert "INFERENCE_API=http://secret-proxy:9000" in docker_run
+
+
+def test_default_execution_hook_refuses_non_internal_network(
+    tmp_path: Path, monkeypatch
+) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    benchmark_path = write_sandbox_source(sandbox_root)
+    source = resolve_sn60_sandbox_source(
+        sandbox_root=str(sandbox_root),
+        benchmark_file=str(benchmark_path),
+        sandbox_commit="commit-1",
+        scorer_version="ScaBenchScorerV2",
+    )
+    context = _make_context(tmp_path, source)
+    monkeypatch.setenv("INFERENCE_API_KEY", "run-token")
+
+    docker_ran = {"value": False}
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd[:3] == ["docker", "network", "inspect"]:
+            return _completed(cmd, returncode=0, stdout="false\n")
+        if cmd[:2] == ["docker", "run"]:
+            docker_ran["value"] = True
+        return _completed(cmd, returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="permits external egress"):
+        build_default_execution_hook(source)(context)
+
+    # Untrusted agent must never start on an egress-capable network.
+    assert docker_ran["value"] is False

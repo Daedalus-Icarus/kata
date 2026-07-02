@@ -561,9 +561,97 @@ def extract_evaluation_metrics(evaluation_payload: dict[str, object]) -> Sn60Eva
     }
 
 
+def resolve_sn60_inference_api() -> str:
+    """Endpoint the sandboxed agent calls for inference.
+
+    Defaults to the local Bitsec proxy; a secret-proxy deployment overrides it
+    via KATA_SN60_INFERENCE_API so the agent is routed through a scoped proxy
+    instead. The default keeps existing local runs unchanged.
+    """
+    value = os.environ.get("KATA_SN60_INFERENCE_API")
+    if value and value.strip():
+        return value.strip()
+    return DEFAULT_SANDBOX_INFERENCE_API
+
+
+def resolve_sn60_proxy_network() -> str:
+    value = os.environ.get("KATA_SN60_PROXY_NETWORK")
+    if value and value.strip():
+        return value.strip()
+    return DEFAULT_SANDBOX_PROXY_NETWORK
+
+
+def docker_network_internal_state(
+    network_name: str,
+    *,
+    run: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> bool | None:
+    """Return the network's `Internal` flag, or None if it does not exist."""
+    run = run or subprocess.run
+    completed = run(
+        ["docker", "network", "inspect", network_name, "--format", "{{.Internal}}"],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        stderr = (completed.stderr or "").lower()
+        if "not found" in stderr or "no such network" in stderr:
+            return None
+        raise RuntimeError(
+            f"Failed to inspect docker network '{network_name}': "
+            f"{completed.stderr.strip() or completed.stdout.strip()}"
+        )
+    return completed.stdout.strip().lower() == "true"
+
+
+def ensure_internal_agent_network(
+    network_name: str,
+    *,
+    run: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> None:
+    """Guarantee the SN60 agent network exists and blocks external egress.
+
+    Untrusted miner code runs on this network, so it must be `--internal`:
+    agents can reach the proxy but not the public internet, which is what keeps
+    injected credentials from being exfiltrated. Create the network if it is
+    absent; refuse to run if it exists but permits egress rather than silently
+    running untrusted code with internet access.
+    """
+    run = run or subprocess.run
+    state = docker_network_internal_state(network_name, run=run)
+    if state is None:
+        created = run(
+            ["docker", "network", "create", "--internal", network_name],
+            capture_output=True,
+            text=True,
+        )
+        if created.returncode != 0:
+            raise RuntimeError(
+                f"Failed to create internal docker network '{network_name}': "
+                f"{created.stderr.strip() or created.stdout.strip()}"
+            )
+        return
+    if state is False:
+        raise ValueError(
+            f"Refusing to run untrusted SN60 agents on docker network "
+            f"'{network_name}': it permits external egress. Recreate it with "
+            f"`docker network create --internal {network_name}` or set "
+            "KATA_SN60_PROXY_NETWORK to an internal network."
+        )
+
+
 def build_default_execution_hook(source: Sn60SandboxSource) -> Sn60ExecutionHook:
     def _execute(context: Sn60ReplicaContext) -> dict[str, object]:
-        command = build_bitsec_execution_command(context)
+        proxy_network = resolve_sn60_proxy_network()
+        inference_api = resolve_sn60_inference_api()
+        # Untrusted miner code runs in this container; guarantee it can only
+        # reach the proxy (never the public internet) before starting it.
+        ensure_internal_agent_network(proxy_network)
+        command = build_bitsec_execution_command(
+            context,
+            proxy_network=proxy_network,
+            inference_api=inference_api,
+        )
         env = {
             "INFERENCE_API_KEY": required_env("INFERENCE_API_KEY"),
         }
