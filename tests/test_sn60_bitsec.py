@@ -554,6 +554,32 @@ def test_extract_evaluation_metrics_keeps_metrics_for_success() -> None:
     assert metrics["total_found"] == 7
 
 
+def test_extract_evaluation_metrics_accepts_enum_repr_status() -> None:
+    # The SN60 sandbox serializes its Status enum as "Status.SUCCESS" (via
+    # json.dumps(default=str)); a valid run must not be counted as invalid.
+    metrics = extract_evaluation_metrics(
+        {
+            "status": "Status.SUCCESS",
+            "result": {
+                "detection_rate": 0.5,
+                "true_positives": 1,
+                "total_expected": 2,
+                "total_found": 1,
+                "result": "PASS",
+            },
+        }
+    )
+
+    assert metrics["evaluation_status"] == "success"
+    assert metrics["score"] == 0.5
+    assert metrics["true_positives"] == 1
+
+    # A non-success enum status is still treated as invalid.
+    failed = extract_evaluation_metrics({"status": "Status.ERROR", "result": {}})
+    assert failed["evaluation_status"] == "error"
+    assert failed["score"] == 0.0
+
+
 def test_execution_subprocess_env_strips_validator_scoring_secrets(
     monkeypatch,
 ) -> None:

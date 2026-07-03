@@ -530,7 +530,12 @@ def build_replica_result(
 
 
 def extract_evaluation_metrics(evaluation_payload: dict[str, object]) -> Sn60EvaluationMetrics:
-    status_value = str(evaluation_payload.get("status", "error")).lower()
+    # The SN60 sandbox serializes its Status enum via json.dumps(default=str),
+    # yielding "Status.SUCCESS"; older builds emitted the bare value "success".
+    # Normalize to the segment after the last "." so both forms compare equal
+    # (otherwise a genuinely successful run is miscounted as an invalid run).
+    raw_status = str(evaluation_payload.get("status", "error")).lower()
+    status_value = raw_status.rsplit(".", 1)[-1]
     result_payload = evaluation_payload.get("result")
     if not isinstance(result_payload, dict):
         result_payload = {}
