@@ -104,7 +104,11 @@ def test_run_sn60_bitsec_duel_stages_full_bundle_and_persists_outputs(tmp_path: 
         report_payload: dict[str, object],
     ) -> dict[str, object]:
         detection_rate = 1.0 if context.variant_name == "candidate" else 0.25
-        if context.project_key == "project-beta" and context.replica_index == 2:
+        if (
+            context.variant_name == "king"
+            and context.project_key == "project-beta"
+            and context.replica_index == 2
+        ):
             return {"status": "error", "error": "forced failure", "result": {}}
         return {
             "status": "success",
@@ -143,19 +147,18 @@ def test_run_sn60_bitsec_duel_stages_full_bundle_and_persists_outputs(tmp_path: 
     assert summary.sandbox_source.sandbox_commit == "sandbox-commit-123"
     assert summary.sandbox_source.benchmark_file == str(benchmark_path.resolve())
     assert summary.king.invalid_runs == 1
-    assert summary.candidate.invalid_runs == 1
+    assert summary.candidate.invalid_runs == 0
     assert summary.king.average_detection_rate == 0.1875
-    assert summary.candidate.average_detection_rate == 0.75
-    assert summary.candidate.pass_count == 3
-    # candidate passes project-alpha (2/2 runs) but not project-beta (1 pass, 1 invalid)
-    assert summary.candidate.codebase_pass_count == 1
-    assert summary.candidate.aggregated_score == 0.5
+    assert summary.candidate.average_detection_rate == 1.0
+    assert summary.candidate.pass_count == 4
+    assert summary.candidate.codebase_pass_count == 2
+    assert summary.candidate.aggregated_score == 1.0
     assert summary.king.codebase_pass_count == 0
     assert summary.king.aggregated_score == 0.0
     candidate_projects = {
         project.project_key: project.passed for project in summary.candidate.project_summaries
     }
-    assert candidate_projects == {"project-alpha": True, "project-beta": False}
+    assert candidate_projects == {"project-alpha": True, "project-beta": True}
 
     duel_summary_path = Path(summary.output_root) / "duel_summary.json"
     assert duel_summary_path.exists()
@@ -182,6 +185,71 @@ def test_run_sn60_bitsec_duel_stages_full_bundle_and_persists_outputs(tmp_path: 
         evaluation_path = report_path.with_name("evaluation.json")
         assert report_path.exists()
         assert evaluation_path.exists()
+
+
+def test_duel_stops_before_king_when_candidate_replica_is_invalid(tmp_path: Path) -> None:
+    sandbox_root = tmp_path / "sandbox"
+    benchmark_path = write_sandbox_source(sandbox_root)
+    benchmark_path.write_text(
+        json.dumps(
+            [
+                {"project_id": "project-alpha", "vulnerabilities": []},
+                {"project_id": "project-beta", "vulnerabilities": []},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    king_root = tmp_path / "king"
+    candidate_root = tmp_path / "candidate"
+    write_bundle(king_root, agent_source="def agent_main():\n    return {}\n")
+    write_bundle(candidate_root, agent_source="def agent_main():\n    return {}\n")
+
+    executed: list[tuple[str, str, int]] = []
+
+    def execute(context: Sn60ReplicaContext) -> dict[str, object]:
+        executed.append((context.variant_name, context.project_key, context.replica_index))
+        return {"success": True, "report": {"vulnerabilities": []}}
+
+    def evaluate(
+        context: Sn60ReplicaContext,
+        _report_payload: dict[str, object],
+    ) -> dict[str, object]:
+        if context.variant_name == "candidate" and context.replica_index == 1:
+            return {"status": "error", "error": "invalid candidate output", "result": {}}
+        return {
+            "status": "success",
+            "result": {
+                "result": "PASS",
+                "detection_rate": 1.0,
+                "true_positives": 1,
+                "total_expected": 1,
+                "total_found": 1,
+            },
+        }
+
+    summary = run_sn60_bitsec_duel(
+        king_artifact_path=str(king_root),
+        candidate_artifact_path=str(candidate_root),
+        project_keys=["project-alpha", "project-beta"],
+        output_root=str(tmp_path / "runs"),
+        replicas_per_project=3,
+        sandbox_root=str(sandbox_root),
+        benchmark_file=str(benchmark_path),
+        sandbox_commit="sandbox-commit-stop-invalid",
+        execution_hook=execute,
+        evaluation_hook=evaluate,
+    )
+
+    assert executed == [("candidate", "project-alpha", 1)]
+    assert summary.project_keys == ["project-alpha", "project-beta"]
+    assert summary.candidate.invalid_runs == 1
+    assert summary.candidate.successful_runs == 0
+    assert summary.king.replica_results == []
+    assert summary.king.invalid_runs == 0
+    persisted = json.loads((Path(summary.output_root) / "duel_summary.json").read_text())
+    assert persisted["candidate"]["invalid_runs"] == 1
+    assert persisted["king"]["replica_results"] == []
 
 
 def test_load_sn60_benchmark_project_keys_reads_real_snapshot_ids(tmp_path: Path) -> None:

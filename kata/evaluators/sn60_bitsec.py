@@ -236,7 +236,11 @@ def run_sn60_bitsec_duel(
     candidate_hash = hash_bundle_root(candidate_root)
 
     def _run_phase(
-        keys: list[str], variant_name: str, artifact_root: Path
+        keys: list[str],
+        variant_name: str,
+        artifact_root: Path,
+        *,
+        stop_on_invalid: bool = False,
     ) -> list[Sn60ReplicaResult]:
         return run_variant_replicas(
             run_id=run_id,
@@ -249,12 +253,18 @@ def run_sn60_bitsec_duel(
             execution_hook=resolved_execution_hook,
             evaluation_hook=resolved_evaluation_hook,
             eval_max_vulns=eval_max_vulns,
+            stop_on_invalid=stop_on_invalid,
         )
 
-    king_results = _run_phase(list(project_keys), "king", king_root)
-    candidate_results = _run_phase(list(project_keys), "candidate", candidate_root)
-    executed_set = set(project_keys)
-    ordered_executed_keys = [key for key in project_keys if key in executed_set]
+    candidate_results = _run_phase(
+        list(project_keys),
+        "candidate",
+        candidate_root,
+        stop_on_invalid=True,
+    )
+    candidate_invalid = any(result.evaluation_status != "success" for result in candidate_results)
+    king_results = [] if candidate_invalid else _run_phase(list(project_keys), "king", king_root)
+    ordered_executed_keys = list(project_keys)
 
     king_summary = summarize_variant(
         variant_name="king",
@@ -296,6 +306,7 @@ def run_variant_replicas(
     execution_hook: Sn60ExecutionHook,
     evaluation_hook: Sn60EvaluationHook,
     eval_max_vulns: int = DEFAULT_EVAL_MAX_VULNS,
+    stop_on_invalid: bool = False,
 ) -> list[Sn60ReplicaResult]:
     """Run every replica for one variant over the given projects.
 
@@ -329,9 +340,10 @@ def run_variant_replicas(
             write_json(Path(context.report_path), report_payload)
             evaluation_payload = evaluation_hook(context, report_payload)
             write_json(Path(context.evaluation_path), evaluation_payload)
-            replica_results.append(
-                build_replica_result(context, report_payload, evaluation_payload)
-            )
+            replica_result = build_replica_result(context, report_payload, evaluation_payload)
+            replica_results.append(replica_result)
+            if stop_on_invalid and replica_result.evaluation_status != "success":
+                return replica_results
 
     return replica_results
 
