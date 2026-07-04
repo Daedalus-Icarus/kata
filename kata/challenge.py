@@ -346,13 +346,6 @@ def evaluate_sn60_promotion(
             final_winner="king",
             reason="candidate failed SN60 screening",
         )
-    if candidate.invalid_runs > 0:
-        return Sn60PromotionDecision(
-            promotion_ready=False,
-            final_winner="king",
-            reason="candidate has invalid SN60 replica runs",
-        )
-
     candidate_rank = sn60_variant_rank(candidate)
     king_rank = sn60_variant_rank(king)
     if candidate_rank <= king_rank:
@@ -368,13 +361,15 @@ def evaluate_sn60_promotion(
     )
 
 
-def sn60_variant_rank(summary: Sn60VariantSummary) -> tuple[float, int, int, int]:
-    # Promotion comparator per the frozen SN60 spec:
-    # aggregated score first, codebase pass count second, true positives third.
+def sn60_variant_rank(summary: Sn60VariantSummary) -> tuple[float, int, float, float, int]:
+    # SN60-style comparator: detection score first, then true positives and
+    # quality metrics. Project PASS count is reported separately, not used as
+    # the main rank signal.
     return (
         round(summary.aggregated_score, 8),
-        summary.codebase_pass_count,
         summary.true_positives,
+        round(summary.precision, 8),
+        round(summary.f1_score, 8),
         -summary.invalid_runs,
     )
 
@@ -522,6 +517,18 @@ def sn60_final_metrics(
         "king_aggregated_score": king_aggregated,
         "candidate_aggregated_score": candidate_aggregated,
         "candidate_aggregated_score_delta": candidate_aggregated - king_aggregated,
+        "king_true_positives": duel_summary.king.true_positives,
+        "candidate_true_positives": duel_summary.candidate.true_positives,
+        "king_total_expected": duel_summary.king.total_expected,
+        "candidate_total_expected": duel_summary.candidate.total_expected,
+        "king_total_found": duel_summary.king.total_found,
+        "candidate_total_found": duel_summary.candidate.total_found,
+        "king_precision": duel_summary.king.precision,
+        "candidate_precision": duel_summary.candidate.precision,
+        "king_f1_score": duel_summary.king.f1_score,
+        "candidate_f1_score": duel_summary.candidate.f1_score,
+        "king_invalid_runs": duel_summary.king.invalid_runs,
+        "candidate_invalid_runs": duel_summary.candidate.invalid_runs,
         "sandbox_commit": duel_summary.sandbox_source.sandbox_commit,
         "benchmark_sha256": duel_summary.sandbox_source.benchmark_sha256,
         "scorer_version": duel_summary.sandbox_source.scorer_version,

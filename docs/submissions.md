@@ -285,9 +285,37 @@ decided later by the workflow in [workflow.md](workflow.md).
 High-level promotion requirements:
 
 - screening must pass
-- candidate must have zero invalid replica runs
 - candidate must strictly beat the current king
 - the result must still be fresh at merge time
+
+Kata uses SN60-style sampled validation for promotion. The primary score is:
+
+```text
+detection_score = total_true_positives / total_expected_vulnerabilities
+```
+
+Beginner definitions:
+
+- `true positives`: expected benchmark vulnerabilities your agent correctly
+  found.
+- `precision`: the share of your reported findings that were real matches,
+  `true_positives / total_found`. Noisy extra findings lower precision.
+- `F1 score`: a balanced quality score combining detection score and precision.
+- `invalid/error evaluation`: the agent run, report, sandbox, or scorer did not
+  finish as a successful evaluation. It scores zero for that project and hurts
+  tie-breaks.
+
+Promotion comparison order:
+
+1. higher detection score
+2. more true positives
+3. higher precision
+4. higher F1 score
+5. fewer invalid/error evaluations
+
+Sandbox `PASS` means the run found every expected vulnerability for that
+project. PASS projects are shown for context, but detection score is the main
+promotion signal.
 
 ## Quick Start
 

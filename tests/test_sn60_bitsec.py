@@ -154,7 +154,7 @@ def test_run_sn60_bitsec_duel_stages_full_bundle_and_persists_outputs(tmp_path: 
     assert summary.candidate.codebase_pass_count == 2
     assert summary.candidate.aggregated_score == 1.0
     assert summary.king.codebase_pass_count == 0
-    assert summary.king.aggregated_score == 0.0
+    assert summary.king.aggregated_score == 0.25
     candidate_projects = {
         project.project_key: project.passed for project in summary.candidate.project_summaries
     }
@@ -187,7 +187,7 @@ def test_run_sn60_bitsec_duel_stages_full_bundle_and_persists_outputs(tmp_path: 
         assert evaluation_path.exists()
 
 
-def test_duel_stops_before_king_when_candidate_replica_is_invalid(tmp_path: Path) -> None:
+def test_duel_records_invalid_candidate_replica_and_continues(tmp_path: Path) -> None:
     sandbox_root = tmp_path / "sandbox"
     benchmark_path = write_sandbox_source(sandbox_root)
     benchmark_path.write_text(
@@ -241,15 +241,20 @@ def test_duel_stops_before_king_when_candidate_replica_is_invalid(tmp_path: Path
         evaluation_hook=evaluate,
     )
 
-    assert executed == [("candidate", "project-alpha", 1)]
+    assert len(executed) == 12
+    assert executed[:3] == [
+        ("candidate", "project-alpha", 1),
+        ("candidate", "project-alpha", 2),
+        ("candidate", "project-alpha", 3),
+    ]
     assert summary.project_keys == ["project-alpha", "project-beta"]
-    assert summary.candidate.invalid_runs == 1
-    assert summary.candidate.successful_runs == 0
-    assert summary.king.replica_results == []
+    assert summary.candidate.invalid_runs == 2
+    assert summary.candidate.successful_runs == 4
+    assert len(summary.king.replica_results) == 6
     assert summary.king.invalid_runs == 0
     persisted = json.loads((Path(summary.output_root) / "duel_summary.json").read_text())
-    assert persisted["candidate"]["invalid_runs"] == 1
-    assert persisted["king"]["replica_results"] == []
+    assert persisted["candidate"]["invalid_runs"] == 2
+    assert len(persisted["king"]["replica_results"]) == 6
 
 
 def test_load_sn60_benchmark_project_keys_reads_real_snapshot_ids(tmp_path: Path) -> None:
@@ -866,6 +871,8 @@ def _replica(project_key: str, result: str | None, status: str = "success") -> S
         true_positives=0,
         total_expected=0,
         total_found=0,
+        precision=0.0,
+        f1_score=0.0,
     )
 
 

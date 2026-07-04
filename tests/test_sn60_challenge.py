@@ -126,7 +126,7 @@ def test_run_sn60_challenge_decides_winner_and_records_lane_provenance(
 
     assert summary.mode == "miner"
     assert summary.promotion_ready
-    assert summary.primary.variant_scores == {"king": 0.0, "candidate": 100.0}
+    assert summary.primary.variant_scores == {"king": 25.0, "candidate": 100.0}
     assert summary.primary.variant_successes == {"king": 0, "candidate": 1}
     assert summary.primary.total_task_weight == 1.0
     assert summary.primary.candidate_beats_king
@@ -151,7 +151,7 @@ def test_run_sn60_challenge_decides_winner_and_records_lane_provenance(
     assert promotion_record.final_winner == "candidate"
     assert promotion_record.final_metrics["promotion_ready"] is True
     assert promotion_record.final_metrics["candidate_aggregated_score"] == 1.0
-    assert promotion_record.final_metrics["king_aggregated_score"] == 0.0
+    assert promotion_record.final_metrics["king_aggregated_score"] == 0.25
     assert promotion_record.pass_counts == {"king": 0, "candidate": 1}
     assert promotion_record.local_replica_scores["candidate"] == [1.0, 1.0]
 
@@ -171,22 +171,22 @@ def test_run_sn60_challenge_decides_winner_and_records_lane_provenance(
     ).exists()
 
 
-def test_evaluate_sn60_promotion_rejects_invalid_candidate() -> None:
+def test_evaluate_sn60_promotion_uses_invalid_runs_as_last_tiebreaker() -> None:
     king = build_variant(
-        "king", aggregated_score=0.5, codebase_pass_count=1, invalid_runs=0
+        "king", aggregated_score=0.5, codebase_pass_count=1, true_positives=2, invalid_runs=0
     )
     candidate = build_variant(
-        "candidate", aggregated_score=1.0, codebase_pass_count=2, invalid_runs=1
+        "candidate", aggregated_score=0.5, codebase_pass_count=1, true_positives=2, invalid_runs=1
     )
 
     decision = evaluate_sn60_promotion(king=king, candidate=candidate)
 
     assert not decision.promotion_ready
     assert decision.final_winner == "king"
-    assert decision.reason == "candidate has invalid SN60 replica runs"
+    assert decision.reason == "candidate did not beat the current SN60 king"
 
 
-def test_evaluate_sn60_promotion_uses_pass_count_as_score_tiebreaker() -> None:
+def test_evaluate_sn60_promotion_does_not_use_pass_count_as_score_tiebreaker() -> None:
     king = build_variant(
         "king",
         aggregated_score=0.5,
@@ -202,8 +202,8 @@ def test_evaluate_sn60_promotion_uses_pass_count_as_score_tiebreaker() -> None:
 
     decision = evaluate_sn60_promotion(king=king, candidate=candidate)
 
-    assert decision.promotion_ready
-    assert decision.final_winner == "candidate"
+    assert not decision.promotion_ready
+    assert decision.final_winner == "king"
 
 
 def test_evaluate_sn60_promotion_uses_true_positives_as_final_tiebreaker() -> None:
@@ -218,6 +218,28 @@ def test_evaluate_sn60_promotion_uses_true_positives_as_final_tiebreaker() -> No
         aggregated_score=0.5,
         codebase_pass_count=1,
         true_positives=6,
+    )
+
+    decision = evaluate_sn60_promotion(king=king, candidate=candidate)
+
+    assert decision.promotion_ready
+    assert decision.final_winner == "candidate"
+
+
+def test_evaluate_sn60_promotion_uses_precision_tiebreaker() -> None:
+    king = build_variant(
+        "king",
+        aggregated_score=0.5,
+        codebase_pass_count=1,
+        true_positives=4,
+        total_found=8,
+    )
+    candidate = build_variant(
+        "candidate",
+        aggregated_score=0.5,
+        codebase_pass_count=1,
+        true_positives=4,
+        total_found=5,
     )
 
     decision = evaluate_sn60_promotion(king=king, candidate=candidate)
@@ -364,8 +386,16 @@ def build_variant(
     aggregated_score: float,
     codebase_pass_count: int,
     true_positives: int = 0,
+    total_found: int | None = None,
     invalid_runs: int = 0,
 ) -> Sn60VariantSummary:
+    found = true_positives if total_found is None else total_found
+    precision = true_positives / found if found else 0.0
+    f1_score = (
+        2 * precision * aggregated_score / (precision + aggregated_score)
+        if precision + aggregated_score > 0
+        else 0.0
+    )
     replica_results = [
         Sn60ReplicaResult(
             project_key="project-alpha",
@@ -379,7 +409,9 @@ def build_variant(
             result="PASS" if codebase_pass_count else "FAIL",
             true_positives=true_positives,
             total_expected=4,
-            total_found=true_positives,
+            total_found=found,
+            precision=precision,
+            f1_score=f1_score,
         )
     ]
     return Sn60VariantSummary(
@@ -394,7 +426,9 @@ def build_variant(
         average_detection_rate=aggregated_score,
         true_positives=true_positives,
         total_expected=4,
-        total_found=true_positives,
+        total_found=found,
+        precision=precision,
+        f1_score=f1_score,
         project_summaries=[
             Sn60ProjectAggregate(
                 project_key="project-alpha",
@@ -406,7 +440,9 @@ def build_variant(
                 average_detection_rate=aggregated_score,
                 true_positives=true_positives,
                 total_expected=4,
-                total_found=true_positives,
+                total_found=found,
+                precision=precision,
+                f1_score=f1_score,
             )
         ],
         replica_results=replica_results,

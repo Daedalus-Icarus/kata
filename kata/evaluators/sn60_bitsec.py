@@ -22,7 +22,7 @@ DEFAULT_SANDBOX_PROXY_NETWORK = "bitsec-net"
 DEFAULT_SANDBOX_PROXY_URL = "http://localhost:8087"
 DEFAULT_SANDBOX_INFERENCE_API = "http://bitsec_proxy:8000"
 DEFAULT_EVAL_MAX_VULNS = 100
-DEFAULT_REPLICAS_PER_PROJECT = 3
+DEFAULT_REPLICAS_PER_PROJECT = 1
 DEFAULT_BENCHMARK_FILENAME = "curated-highs-only-2025-08-08.json"
 DEFAULT_EXECUTION_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
 DEFAULT_EVALUATION_SUBPROCESS_TIMEOUT_SECONDS = 60 * 60
@@ -106,6 +106,8 @@ class Sn60ReplicaResult:
     true_positives: int
     total_expected: int
     total_found: int
+    precision: float
+    f1_score: float
 
 
 class Sn60EvaluationMetrics(TypedDict):
@@ -116,6 +118,8 @@ class Sn60EvaluationMetrics(TypedDict):
     true_positives: int
     total_expected: int
     total_found: int
+    precision: float
+    f1_score: float
 
 
 @dataclass(frozen=True)
@@ -130,6 +134,8 @@ class Sn60ProjectAggregate:
     true_positives: int
     total_expected: int
     total_found: int
+    precision: float
+    f1_score: float
 
 
 @dataclass(frozen=True)
@@ -146,6 +152,8 @@ class Sn60VariantSummary:
     true_positives: int
     total_expected: int
     total_found: int
+    precision: float
+    f1_score: float
     project_summaries: list[Sn60ProjectAggregate]
     replica_results: list[Sn60ReplicaResult]
 
@@ -239,8 +247,6 @@ def run_sn60_bitsec_duel(
         keys: list[str],
         variant_name: str,
         artifact_root: Path,
-        *,
-        stop_on_invalid: bool = False,
     ) -> list[Sn60ReplicaResult]:
         return run_variant_replicas(
             run_id=run_id,
@@ -253,7 +259,6 @@ def run_sn60_bitsec_duel(
             execution_hook=resolved_execution_hook,
             evaluation_hook=resolved_evaluation_hook,
             eval_max_vulns=eval_max_vulns,
-            stop_on_invalid=stop_on_invalid,
         )
 
     candidate_results: list[Sn60ReplicaResult] = []
@@ -263,15 +268,8 @@ def run_sn60_bitsec_duel(
             [project_key],
             "candidate",
             candidate_root,
-            stop_on_invalid=True,
         )
         candidate_results.extend(project_candidate_results)
-        candidate_invalid = any(
-            result.evaluation_status != "success"
-            for result in project_candidate_results
-        )
-        if candidate_invalid:
-            break
         king_results.extend(_run_phase([project_key], "king", king_root))
     ordered_executed_keys = list(project_keys)
 
@@ -459,6 +457,22 @@ def load_sn60_benchmark_project_keys(sandbox_source: Sn60SandboxSource) -> list[
     return sorted(dict.fromkeys(project_keys))
 
 
+def sn60_benchmark_expected_count(
+    sandbox_source: Sn60SandboxSource,
+    project_key: str,
+) -> int:
+    payload = json.loads(Path(sandbox_source.benchmark_file).read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError("SN60 benchmark snapshot must be a JSON list.")
+    for entry in payload:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("project_id") == project_key or entry.get("id") == project_key:
+            vulnerabilities = entry.get("vulnerabilities")
+            return len(vulnerabilities) if isinstance(vulnerabilities, list) else 0
+    return 0
+
+
 def validate_sn60_project_keys(
     project_keys: list[str],
     *,
@@ -541,6 +555,16 @@ def summarize_variant(
         for project_key in project_keys
     ]
     detection_rates = [result.detection_rate for result in replica_results]
+    true_positives = sum(result.true_positives for result in replica_results)
+    total_expected = sum(result.total_expected for result in replica_results)
+    total_found = sum(result.total_found for result in replica_results)
+    precision = true_positives / total_found if total_found else 0.0
+    aggregated_score = true_positives / total_expected if total_expected else 0.0
+    f1_score = (
+        2 * precision * aggregated_score / (precision + aggregated_score)
+        if precision + aggregated_score > 0
+        else 0.0
+    )
     codebase_pass_count = sum(1 for project in project_summaries if project.passed)
     return Sn60VariantSummary(
         variant_name=variant_name,
@@ -552,15 +576,15 @@ def summarize_variant(
         invalid_runs=sum(1 for result in replica_results if result.evaluation_status != "success"),
         pass_count=sum(1 for result in replica_results if result.result == "PASS"),
         codebase_pass_count=codebase_pass_count,
-        # `aggregated score` per the SN60 spec: passed codebases / total codebases.
-        # V1 runs one local validator replica-set, so this equals its validator score.
-        aggregated_score=(
-            codebase_pass_count / len(project_summaries) if project_summaries else 0.0
-        ),
+        # SN60 score signal: total expected vulnerabilities found across the
+        # sampled projects. Project PASS remains a display metric only.
+        aggregated_score=aggregated_score,
         average_detection_rate=fmean(detection_rates) if detection_rates else 0.0,
-        true_positives=sum(result.true_positives for result in replica_results),
-        total_expected=sum(result.total_expected for result in replica_results),
-        total_found=sum(result.total_found for result in replica_results),
+        true_positives=true_positives,
+        total_expected=total_expected,
+        total_found=total_found,
+        precision=precision,
+        f1_score=f1_score,
         project_summaries=project_summaries,
         replica_results=replica_results,
     )
@@ -573,6 +597,16 @@ def summarize_project(
 ) -> Sn60ProjectAggregate:
     detection_rates = [result.detection_rate for result in replica_results]
     pass_count = sum(1 for result in replica_results if result.result == "PASS")
+    true_positives = sum(result.true_positives for result in replica_results)
+    total_expected = sum(result.total_expected for result in replica_results)
+    total_found = sum(result.total_found for result in replica_results)
+    detection_rate = true_positives / total_expected if total_expected else 0.0
+    precision = true_positives / total_found if total_found else 0.0
+    f1_score = (
+        2 * precision * detection_rate / (precision + detection_rate)
+        if precision + detection_rate > 0
+        else 0.0
+    )
     return Sn60ProjectAggregate(
         project_key=project_key,
         replica_count=len(replica_results),
@@ -583,9 +617,11 @@ def summarize_project(
         pass_count=pass_count,
         passed=project_passes(pass_count=pass_count, replica_count=len(replica_results)),
         average_detection_rate=fmean(detection_rates) if detection_rates else 0.0,
-        true_positives=sum(result.true_positives for result in replica_results),
-        total_expected=sum(result.total_expected for result in replica_results),
-        total_found=sum(result.total_found for result in replica_results),
+        true_positives=true_positives,
+        total_expected=total_expected,
+        total_found=total_found,
+        precision=precision,
+        f1_score=f1_score,
     )
 
 
@@ -605,6 +641,12 @@ def build_replica_result(
     evaluation_payload: dict[str, object],
 ) -> Sn60ReplicaResult:
     metrics = extract_evaluation_metrics(evaluation_payload)
+    total_expected = metrics["total_expected"]
+    if metrics["evaluation_status"] != "success" and total_expected == 0:
+        total_expected = sn60_benchmark_expected_count(
+            context.sandbox_source,
+            context.project_key,
+        )
     return Sn60ReplicaResult(
         project_key=context.project_key,
         replica_index=context.replica_index,
@@ -616,8 +658,10 @@ def build_replica_result(
         detection_rate=metrics["detection_rate"],
         result=metrics["result"],
         true_positives=metrics["true_positives"],
-        total_expected=metrics["total_expected"],
+        total_expected=total_expected,
         total_found=metrics["total_found"],
+        precision=metrics["precision"],
+        f1_score=metrics["f1_score"],
     )
 
 
@@ -655,6 +699,8 @@ def extract_evaluation_metrics(evaluation_payload: dict[str, object]) -> Sn60Eva
         "total_found": (
             int(result_payload.get("total_found", 0) or 0) if is_success else 0
         ),
+        "precision": float(result_payload.get("precision", 0.0) or 0.0) if is_success else 0.0,
+        "f1_score": float(result_payload.get("f1_score", 0.0) or 0.0) if is_success else 0.0,
     }
 
 

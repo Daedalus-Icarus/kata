@@ -89,14 +89,13 @@ The full workflow from a pull request to a new king:
    outside the submission) and enqueues a durable job.
 3. **Screen.** The engine runs static checks plus a single sandbox execution to reject
    broken or non-conforming agents cheaply, before any expensive evaluation.
-4. **Duel.** For each selected benchmark codebase, Kata runs the candidate
-   replicas first, then the current king replicas for that same codebase before
-   moving to the next codebase. By default the selected set is the full snapshot;
-   MVP validators can set secret-seeded sampling to use a different
-   random-looking subset per evaluation.
-5. **Decide.** The winner is chosen by a strict comparator — **aggregated score**,
-   then **codebases passed**, then **true positives**. A candidate with any invalid
-   run cannot win. The PR resolves to one action: `merge`, `close-losing`,
+4. **Duel.** For each selected benchmark codebase, Kata runs the candidate first,
+   then the current king for that same codebase before moving to the next
+   codebase. By default the selected set is the full snapshot; MVP validators can
+   set secret-seeded sampling to use a random-looking subset per evaluation.
+5. **Decide.** The winner is chosen by SN60-style metrics: **detection score**,
+   then **true positives**, **precision**, **F1 score**, and fewer invalid/error
+   evaluations. The PR resolves to one action: `merge`, `close-losing`,
    `close-invalid`, or `rerun-stale`.
 6. **Verify freshness.** Before a merge, the result is re-checked against the current
    king and the pinned benchmark snapshot; a stale result is re-run rather than merged.

@@ -21,9 +21,9 @@ production. Working today:
 - **A real king** — the current best SN60 agent is always published under `kings/`.
 - **Isolated, fair execution** — agents run in an internet-blocked sandbox on one fixed
   model, so the king and every challenger are judged identically.
-- **Strict, objective promotion** — a challenger wins only by beating the king on the
-  comparator (aggregated score → codebases passed → true positives), never with an
-  invalid run.
+- **Strict, objective promotion** — a challenger wins only by beating the king on
+  SN60-style metrics: detection score, true positives, precision, F1 score, then
+  fewer invalid/error evaluations.
 - **GitHub automation** — webhook intake, a durable PR queue, and a resident service
   that runs the engine, comments results, and applies outcome labels.
 - **Reproducible provenance** — benchmark and artifact hashes on every duel, with a

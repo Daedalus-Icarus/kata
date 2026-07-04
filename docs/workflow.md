@@ -95,10 +95,11 @@ Default production behavior:
 
 - all projects from the resolved benchmark snapshot are eligible
 - candidate and king run the same selected project set
-- each selected project runs repeated replicas, default `3`
-- execution is per project: candidate replicas first, then king replicas for
-  that same project, then the next project
-- a project passes only if at least `2 of 3` replicas pass
+- each selected project runs once by default, matching the SN60 job-run style
+- execution is per project: candidate first, then king for that same project,
+  then the next project
+- the sandbox returns SN60 metrics for each project: true positives, total
+  expected, detection rate, precision, F1, and PASS/FAIL
 
 MVP cost-saving behavior:
 
@@ -116,7 +117,7 @@ Example MVP settings:
 KATA_SN60_PROJECT_KEYS=
 KATA_SN60_PROJECT_SAMPLE_SIZE=12
 KATA_SN60_PROJECT_SAMPLE_SECRET=<private-validator-secret>
-KATA_SN60_REPLICAS_PER_PROJECT=3
+KATA_SN60_REPLICAS_PER_PROJECT=1
 ```
 
 ### 4. Promotion Gate
@@ -124,23 +125,35 @@ KATA_SN60_REPLICAS_PER_PROJECT=3
 A candidate promotes only if all conditions pass:
 
 - screening passed
-- candidate has `0` invalid replica runs
 - candidate strictly beats the king by rank
 - the result is fresh against the current king and benchmark state
 
 The rank comparator is:
 
-1. aggregated score
-2. codebases passed
-3. true positives
-4. fewer invalid runs
+1. detection score
+2. true positives
+3. precision
+4. F1 score
+5. fewer invalid/error evaluations
 
 Same score and same tie-breakers are not enough; the candidate must strictly
 beat the current king.
 
-Aggregated score is calculated after the executed replica results are summarized:
-`passed_codebases / evaluated_codebases`. A codebase counts as passed only when
-at least two thirds of its replicas pass.
+Detection score follows the SN60 scorer signal:
+`total_true_positives / total_expected_vulnerabilities`.
+
+Metric meanings:
+
+- `true positives`: benchmark vulnerabilities the agent correctly found.
+- `precision`: how many reported findings were real matches,
+  `true_positives / total_found`.
+- `F1 score`: balance between detection score and precision.
+- `invalid/error evaluation`: the sandbox or scorer could not produce a valid
+  successful evaluation for that project. It contributes zero metrics and hurts
+  tie-breaks.
+
+Sandbox `PASS` still means a project run found all expected vulnerabilities.
+PASS project count is useful context, but it is not the primary promotion score.
 
 ## PR Decision Actions
 
