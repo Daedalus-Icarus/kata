@@ -582,6 +582,7 @@ def handle_round(args: argparse.Namespace) -> int:
                     (Path(result.output_root) / "round_summary.json").resolve()
                 ),
                 "winner_submission_id": result.winner_submission_id,
+                "winner_challenge_summary_path": result.winner_challenge_summary_path,
                 "promotion_ready": result.promotion_ready,
                 "promotion_reason": result.promotion_reason,
                 "king": {

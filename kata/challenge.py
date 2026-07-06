@@ -450,6 +450,7 @@ class Sn60RoundResult:
     winner_submission_id: str | None
     promotion_ready: bool
     promotion_reason: str
+    winner_challenge_summary_path: str | None = None
 
 
 def build_sn60_round_id() -> str:
@@ -506,6 +507,7 @@ def run_sn60_round(
     king_summary: Sn60VariantSummary | None = None
     sandbox_source: Sn60SandboxSource | None = None
     entries: list[Sn60RoundEntry] = []
+    duel_summaries: dict[str, Sn60DuelSummary] = {}
     for submission_id, candidate_artifact_path in candidates:
         duel_summary = run_sn60_bitsec_duel(
             king_artifact_path=king_artifact_path,
@@ -520,6 +522,7 @@ def run_sn60_round(
             evaluation_hook=evaluation_hook,
             king_scoreboard_path=king_scoreboard_path,
         )
+        duel_summaries[submission_id] = duel_summary
         king_summary = duel_summary.king
         sandbox_source = duel_summary.sandbox_source
         decision = evaluate_sn60_promotion(
@@ -541,6 +544,20 @@ def run_sn60_round(
     assert king_summary is not None and sandbox_source is not None
     ranked = sorted(entries, key=lambda entry: sn60_variant_rank(entry.candidate), reverse=True)
     winner = next((entry for entry in ranked if entry.beats_king), None)
+    # Persist the winner's promotion artifact from the duel it already ran, so the
+    # king is promoted from this round's result -- no second (redundant) duel at
+    # merge time.
+    winner_challenge_summary_path: str | None = None
+    if winner is not None:
+        winner_duel = duel_summaries[winner.submission_id]
+        winner_summary = sn60_duel_to_challenge_summary(
+            winner_duel,
+            lane_id=SN60_MINER_LANE_ID,
+            screening_result=screening_result,
+        )
+        winner_summary_path = Path(winner_duel.output_root) / "challenge_summary.json"
+        write_challenge_summary(winner_summary_path, winner_summary)
+        winner_challenge_summary_path = str(winner_summary_path)
     result = Sn60RoundResult(
         schema_version=DEFAULT_SN60_ROUND_SCHEMA_VERSION,
         run_id=run_id,
@@ -558,6 +575,7 @@ def run_sn60_round(
             if winner
             else "no candidate beat the current SN60 king"
         ),
+        winner_challenge_summary_path=winner_challenge_summary_path,
     )
     write_sn60_round_summary(round_root / "round_summary.json", result)
     return result

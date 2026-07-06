@@ -622,6 +622,13 @@ def test_run_sn60_round_ranks_candidates_and_picks_strict_winner(tmp_path: Path)
     assert ran["candidate"] == 3
     assert (Path(result.output_root) / "round_summary.json").exists()
 
+    # The winner's promotion artifact is persisted from the duel it already ran,
+    # so the king is promoted from this round -- no second duel at merge time.
+    assert result.winner_challenge_summary_path is not None
+    summary_path = Path(result.winner_challenge_summary_path)
+    assert summary_path.exists()
+    assert summary_path.name == "challenge_summary.json"
+
 
 def test_run_sn60_round_has_no_winner_when_none_beats_king(tmp_path: Path) -> None:
     sandbox_root = tmp_path / "sandbox"
@@ -651,6 +658,8 @@ def test_run_sn60_round_has_no_winner_when_none_beats_king(tmp_path: Path) -> No
     assert result.winner_submission_id is None
     assert result.promotion_ready is False
     assert all(entry.beats_king is False for entry in result.entries)
+    # No winner -> no promotion artifact to write.
+    assert result.winner_challenge_summary_path is None
 
 
 def test_run_sn60_round_rejects_duplicate_submission_ids(tmp_path: Path) -> None:
