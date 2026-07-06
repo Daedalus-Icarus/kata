@@ -6,6 +6,7 @@ from pathlib import Path
 
 from kata.challenge import (
     DEFAULT_REPLICAS_PER_PROJECT,
+    hash_bundle_root,
     load_challenge_summary,
     render_challenge_summary,
     run_sn60_round,
@@ -32,6 +33,7 @@ from kata.submissions import (
     render_submission_json,
     render_submission_validation,
     render_submission_verification,
+    resolve_sn60_project_keys,
     validate_submission,
     verify_submission_result,
 )
@@ -377,8 +379,12 @@ def build_parser() -> argparse.ArgumentParser:
     round_cmd.add_argument(
         "--sn60-project-key",
         action="append",
-        required=True,
-        help="SN60 project key to score every entrant on. Repeat for each sampled project.",
+        default=None,
+        help=(
+            "SN60 project key to score every entrant on. Repeat per project. When "
+            "omitted, the round secretly samples this round's problems from the "
+            "benchmark (KATA_SN60_PROJECT_SAMPLE_SIZE / _SECRET)."
+        ),
     )
     round_cmd.add_argument(
         "--king-scoreboard",
@@ -550,10 +556,17 @@ def parse_round_candidate(spec: str) -> tuple[str, str]:
 
 def handle_round(args: argparse.Namespace) -> int:
     candidates = [parse_round_candidate(spec) for spec in args.candidate]
+    project_keys = args.sn60_project_key or resolve_sn60_project_keys(
+        configured_keys=None,
+        sandbox_root=args.sn60_sandbox_root,
+        benchmark_file=args.sn60_benchmark_file,
+        sandbox_commit=args.sn60_sandbox_commit,
+        king_artifact_hash=hash_bundle_root(Path(args.king_path).expanduser().resolve()),
+    )
     result = run_sn60_round(
         king_artifact_path=args.king_path,
         candidates=candidates,
-        project_keys=args.sn60_project_key,
+        project_keys=project_keys,
         output_root=args.output_root,
         replicas_per_project=args.sn60_replicas_per_project or DEFAULT_REPLICAS_PER_PROJECT,
         sandbox_root=args.sn60_sandbox_root,

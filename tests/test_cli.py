@@ -207,3 +207,56 @@ def test_round_cli_parses_candidates_and_emits_json(monkeypatch, capsys) -> None
     assert payload["promotion_ready"] is True
     assert payload["entries"][0]["submission_id"] == "cand-b"
     assert payload["entries"][0]["beats_king"] is True
+
+
+def test_round_cli_samples_problems_when_keys_omitted(tmp_path, monkeypatch, capsys) -> None:
+    import kata.cli as cli
+
+    benchmark = tmp_path / "sandbox" / "validator" / "curated-highs-only-2025-08-08.json"
+    benchmark.parent.mkdir(parents=True)
+    keys = [f"proj-{index}" for index in range(5)]
+    benchmark.write_text(
+        json.dumps([{"project_id": key, "vulnerabilities": [{"title": "x"}]} for key in keys])
+        + "\n",
+        encoding="utf-8",
+    )
+    king = tmp_path / "king"
+    king.mkdir()
+    (king / "agent.py").write_text("def agent_main():\n    return {}\n", encoding="utf-8")
+
+    monkeypatch.delenv("KATA_SN60_PROJECT_KEYS", raising=False)
+    monkeypatch.setenv("KATA_SN60_PROJECT_SAMPLE_SIZE", "3")
+    monkeypatch.setenv("KATA_SN60_PROJECT_SAMPLE_SECRET", "round-secret")
+
+    captured: dict[str, object] = {}
+
+    def fake_run_sn60_round(**kwargs):
+        captured.update(kwargs)
+        return types.SimpleNamespace(
+            run_id="r",
+            output_root=str(tmp_path / "runs" / "r"),
+            winner_submission_id=None,
+            promotion_ready=False,
+            promotion_reason="no candidate beat the current SN60 king",
+            king=types.SimpleNamespace(aggregated_score=0.0, true_positives=0, total_expected=0),
+            entries=[],
+        )
+
+    monkeypatch.setattr(cli, "run_sn60_round", fake_run_sn60_round)
+
+    exit_code = main(
+        [
+            "round",
+            "--king-path", str(king),
+            "--candidate", "cand=/tmp/cand",
+            "--sn60-sandbox-root", str(tmp_path / "sandbox"),
+            "--sn60-benchmark-file", str(benchmark),
+            "--sn60-sandbox-commit", "test-commit",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    sampled = captured["project_keys"]
+    assert len(sampled) == 3
+    assert set(sampled).issubset(set(keys))
