@@ -170,14 +170,34 @@ def test_round_cli_parses_candidates_and_emits_json(monkeypatch, capsys) -> None
         winner_challenge_summary_path="/tmp/runs/sn60-round-x/d-1/challenge_summary.json",
         promotion_ready=True,
         promotion_reason="cand-b beat the current SN60 king",
-        king=types.SimpleNamespace(aggregated_score=0.25, true_positives=1, total_expected=4),
+        king=types.SimpleNamespace(
+            aggregated_score=0.25,
+            average_detection_rate=0.25,
+            true_positives=1,
+            total_expected=4,
+            total_found=2,
+            precision=0.5,
+            f1_score=0.4,
+            invalid_runs=0,
+            codebase_pass_count=1,
+            project_summaries=[],
+        ),
         entries=[
             types.SimpleNamespace(
                 submission_id="cand-b",
                 beats_king=True,
                 duel_run_id="d-1",
                 candidate=types.SimpleNamespace(
-                    aggregated_score=0.5, true_positives=2, invalid_runs=0
+                    aggregated_score=0.5,
+                    average_detection_rate=0.5,
+                    true_positives=2,
+                    total_expected=4,
+                    total_found=3,
+                    precision=0.66,
+                    f1_score=0.5,
+                    invalid_runs=0,
+                    codebase_pass_count=2,
+                    project_summaries=[],
                 ),
             )
         ],
@@ -208,6 +228,12 @@ def test_round_cli_parses_candidates_and_emits_json(monkeypatch, capsys) -> None
     assert payload["promotion_ready"] is True
     assert payload["entries"][0]["submission_id"] == "cand-b"
     assert payload["entries"][0]["beats_king"] is True
+    # Rich per-variant detail for the dashboard's per-PR duel view.
+    assert payload["king"]["precision"] == 0.5
+    assert "projects" in payload["king"]
+    assert payload["entries"][0]["precision"] == 0.66
+    assert payload["entries"][0]["f1_score"] == 0.5
+    assert "projects" in payload["entries"][0]
 
 
 def test_round_cli_samples_problems_when_keys_omitted(tmp_path, monkeypatch, capsys) -> None:
@@ -240,7 +266,18 @@ def test_round_cli_samples_problems_when_keys_omitted(tmp_path, monkeypatch, cap
             winner_challenge_summary_path=None,
             promotion_ready=False,
             promotion_reason="no candidate beat the current SN60 king",
-            king=types.SimpleNamespace(aggregated_score=0.0, true_positives=0, total_expected=0),
+            king=types.SimpleNamespace(
+                aggregated_score=0.0,
+                average_detection_rate=0.0,
+                true_positives=0,
+                total_expected=0,
+                total_found=0,
+                precision=0.0,
+                f1_score=0.0,
+                invalid_runs=0,
+                codebase_pass_count=0,
+                project_summaries=[],
+            ),
             entries=[],
         )
 

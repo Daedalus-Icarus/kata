@@ -591,18 +591,13 @@ def handle_round(args: argparse.Namespace) -> int:
                 "winner_challenge_summary_path": result.winner_challenge_summary_path,
                 "promotion_ready": result.promotion_ready,
                 "promotion_reason": result.promotion_reason,
-                "king": {
-                    "aggregated_score": result.king.aggregated_score,
-                    "true_positives": result.king.true_positives,
-                },
+                "king": _sn60_variant_detail(result.king),
                 "entries": [
                     {
                         "submission_id": entry.submission_id,
-                        "aggregated_score": entry.candidate.aggregated_score,
-                        "true_positives": entry.candidate.true_positives,
-                        "invalid_runs": entry.candidate.invalid_runs,
                         "beats_king": entry.beats_king,
                         "duel_run_id": entry.duel_run_id,
+                        **_sn60_variant_detail(entry.candidate),
                     }
                     for entry in result.entries
                 ],
@@ -611,6 +606,35 @@ def handle_round(args: argparse.Namespace) -> int:
     else:
         print(render_round_result(result))
     return 0
+
+
+def _sn60_variant_detail(variant) -> dict:  # type: ignore[no-untyped-def]
+    """Serialize a variant summary (king or candidate) with its per-project
+    breakdown so the dashboard can render a detailed per-PR duel view."""
+    return {
+        "aggregated_score": variant.aggregated_score,
+        "average_detection_rate": variant.average_detection_rate,
+        "true_positives": variant.true_positives,
+        "total_expected": variant.total_expected,
+        "total_found": variant.total_found,
+        "precision": variant.precision,
+        "f1_score": variant.f1_score,
+        "invalid_runs": variant.invalid_runs,
+        "codebase_pass_count": variant.codebase_pass_count,
+        "projects": [
+            {
+                "project_key": project.project_key,
+                "passed": project.passed,
+                "detection_rate": project.average_detection_rate,
+                "true_positives": project.true_positives,
+                "total_expected": project.total_expected,
+                "total_found": project.total_found,
+                "precision": project.precision,
+                "f1_score": project.f1_score,
+            }
+            for project in variant.project_summaries
+        ],
+    }
 
 
 def render_round_result(result) -> str:  # type: ignore[no-untyped-def]
