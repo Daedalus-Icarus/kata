@@ -33,6 +33,24 @@ What this means for you:
   `kata:winner:<pack>` (won), `kata:losing` (didn't beat the king), `kata:invalid`
   (rejected), `kata:stale` (benched), `kata:hold` (won but merge blocked).
 
+### Winner reward labels
+
+When a PR is merged and promoted, Kata applies `kata:winner:<pack>` plus one
+`kata:reward:*` tier. The winner label proves that the PR became king. The reward tier
+is a Gittensor/SN74 scoring signal that says how strong the promotion was.
+
+| Label | Applied when the promoted candidate has... |
+| --- | --- |
+| `kata:reward:s` | a valid promotion below the higher tier thresholds |
+| `kata:reward:m` | at least 3 true positives, or +2 true positives over the king, or +15% score delta |
+| `kata:reward:l` | at least 5 true positives, or +4 true positives over the king, or at least 60% detection score |
+| `kata:reward:xl` | at least 8 true positives, or +6 true positives over the king, or at least 85% detection score |
+
+Gittensor uses the highest matching label multiplier. For example, a PR with
+`kata:winner:sn60__bitsec` and `kata:reward:m` receives the medium reward multiplier,
+not the base winner multiplier. Promotions also decay with age inside the Gittensor
+lookback window, so newer kings carry more reward weight than older winner PRs.
+
 ## Current Scope
 
 The live lane is:

@@ -184,7 +184,8 @@ PASS project count is useful context, but it is not the primary promotion score.
 At the end of a round, each PR resolves to one outcome (and its label):
 
 - **Winner** (`kata:winner:<pack>`) — the top candidate that strictly beat the king; it is
-  merged and promoted. At most one per round.
+  merged and promoted. At most one per round. Winners also receive exactly one
+  `kata:reward:*` tier for Gittensor/SN74 reward weighting.
 - **Kept pending** (`kata:pending`) — a candidate that beat the king but was not the top
   challenger; it stays open to compete again next round.
 - **Losing** (`kata:losing`) — a candidate that competed but did not beat the king; closed.
@@ -199,6 +200,25 @@ At the end of a round, each PR resolves to one outcome (and its label):
 Internally the engine still reduces a single candidate's result to one of `merge`,
 `close-losing`, `close-invalid`, or `rerun-stale`; the round applies these across the batch
 and maps them to the labels above.
+
+## Winner Reward Tiers
+
+The reward tier is separate from the promotion decision. A candidate must first win the
+round and pass the pre-merge promotion checks. Then Kata reads the verified challenge
+summary and applies one tier:
+
+| Label | Condition |
+| --- | --- |
+| `kata:reward:s` | valid promotion below the higher tier thresholds |
+| `kata:reward:m` | candidate true positives >= 3, or candidate beats king by >= 2 true positives, or score delta >= 15% |
+| `kata:reward:l` | candidate true positives >= 5, or candidate beats king by >= 4 true positives, or detection score >= 60% |
+| `kata:reward:xl` | candidate true positives >= 8, or candidate beats king by >= 6 true positives, or detection score >= 85% |
+
+Gittensor uses the highest matching label multiplier on the merged PR. A base winner label
+identifies the lane (`kata:winner:sn60__bitsec`), while the reward tier determines whether
+the promotion is scored as small, medium, large, or extra-large. Gittensor also applies
+time decay to merged winners, so a newer king has more reward weight than an older winner
+PR inside the lookback window.
 
 ## Freshness And Provenance
 
@@ -221,10 +241,11 @@ the king is still current, and the benchmark lane fingerprint has not changed.
 When the final action is `merge`, the production bot:
 
 1. labels the PR with the winning lane label
-2. merges the PR
-3. publishes the candidate bundle under `kings/<subnet-pack>/<mode>/`
-4. updates lane king state
-5. clears the merged submission directory from `main`
+2. labels the PR with the deterministic reward tier
+3. merges the PR
+4. publishes the candidate bundle under `kings/<subnet-pack>/<mode>/`
+5. updates lane king state
+6. clears the merged submission directory from `main`
 
 This keeps `submissions/` empty between active PRs while `kings/` remains the
 public source of truth for the current best agent.

@@ -200,6 +200,10 @@ evaluation. This is implemented today for the live `sn60__bitsec` pack:
 | `kata:pending` | blue | Screened and waiting for the next round. |
 | `kata:executing` | yellow | Competing in the round that is running now. |
 | `kata:winner:<pack>` | green | Beat the king → merged and promoted to king. |
+| `kata:reward:s` | green | Valid promotion below the higher reward-tier thresholds. |
+| `kata:reward:m` | green | Medium promotion: at least 3 true positives, or +2 true positives over the king, or +15% score delta. |
+| `kata:reward:l` | green | Large promotion: at least 5 true positives, or +4 true positives over the king, or at least 60% detection score. |
+| `kata:reward:xl` | green | Extra-large promotion: at least 8 true positives, or +6 true positives over the king, or at least 85% detection score. |
 | `kata:losing` | grey | Competed but did not beat the king → closed. |
 | `kata:invalid` | red | Failed screening or exceeded the one-open-PR rule → closed. |
 | `kata:stale` | orange | Benched: unchanged since it last competed → push to re-enter. |
@@ -207,9 +211,17 @@ evaluation. This is implemented today for the live `sn60__bitsec` pack:
 | `kata:mode:miner` | grey | The competition mode (applied on a win). |
 
 Gittensor's **label and score rules** read these labels, so only a verified
-`kata:winner:*` promotion is recognized as a valid result — not PR size or opinion. As
-more subnets go live, each gets its own `kata:winner:<pack>` label, so packs can be
-scored independently.
+`kata:winner:*` promotion is recognized as a valid result — not PR size or opinion.
+The extra `kata:reward:*` label tells Gittensor how strong the promotion was. Gittensor
+uses the highest matching label multiplier, so a PR with both `kata:winner:sn60__bitsec`
+and `kata:reward:m` is scored with the medium reward multiplier, not the base winner
+multiplier. As more subnets go live, each gets its own `kata:winner:<pack>` label, so
+packs can be scored independently.
+
+Kata promotions also use Gittensor time decay. A fresh winner has the highest reward
+weight, then older winner PRs decay inside the lookback window. This means a newly
+promoted king can earn more reward share than an older king even when the improvement is
+small.
 
 ---
 
