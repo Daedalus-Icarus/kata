@@ -79,6 +79,11 @@ INFERENCE_PATH = "/inference"
 # Answered by the relay itself so operators can prove the process is up without
 # depending on the upstream proxy.
 HEALTH_PATH = "/healthz"
+# Actively probes the upstream model provider with one tiny pinned request so a
+# caller can tell whether inference genuinely works (e.g. the OpenRouter key is
+# not exhausted) BEFORE spending a round's worth of tokens. Unlike /inference it
+# does not force max_tokens up, so the probe is cheap and fast.
+UPSTREAM_CHECK_PATH = "/healthz/upstream"
 # Relay-local cost accounting: read the running total, or zero it before a PR.
 COST_PATH = "/costs"
 COST_RESET_PATH = "/costs/reset"
@@ -401,12 +406,58 @@ class ModelPinningRelayHandler(BaseHTTPRequestHandler):
         self._forward("GET")
 
     def do_POST(self) -> None:
-        if self._path_without_query() == COST_RESET_PATH:
+        path = self._path_without_query()
+        if path == COST_RESET_PATH:
             self._read_body()  # drain any body so the connection stays consistent
             COST_METER.reset()
             self._send_json(200, {"status": "reset"})
             return
+        if path == UPSTREAM_CHECK_PATH:
+            self._handle_upstream_check()
+            return
         self._forward("POST")
+
+    def _handle_upstream_check(self) -> None:
+        """Send one tiny pinned request upstream and report whether it succeeded.
+
+        Returns 200 with ``{"ok": bool, "status": <upstream status>, "detail": ...}``
+        so a caller can decide whether inference is usable without parsing HTTP
+        errors. ``max_tokens`` is kept at 1 (not forced up) so this stays cheap.
+        """
+        self._read_body()  # drain any body the caller sent
+        probe_body = json.dumps(
+            {
+                "model": resolve_pinned_model(),
+                "messages": [{"role": "user", "content": "ping"}],
+                "max_tokens": 1,
+            }
+        ).encode()
+        headers = {"Content-Type": "application/json"}
+        api_key = self.headers.get("x-inference-api-key")
+        if api_key:
+            headers["x-inference-api-key"] = api_key
+        request = Request(
+            resolve_upstream() + INFERENCE_PATH,
+            data=probe_body,
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=min(resolve_timeout(), 60.0)) as response:
+                self._send_json(
+                    200, {"ok": 200 <= response.status < 300, "status": response.status}
+                )
+        except HTTPError as error:
+            try:
+                detail = (error.read()[:300] or b"").decode("utf-8", "replace")
+            except Exception:  # noqa: BLE001 - detail is best-effort
+                detail = ""
+            self._send_json(200, {"ok": False, "status": error.code, "detail": detail})
+        except URLError as error:
+            self._send_json(
+                200,
+                {"ok": False, "status": 0, "detail": f"could not reach upstream: {error.reason}"},
+            )
 
     # -- forwarding -----------------------------------------------------------
     def _forward(self, method: str) -> None:

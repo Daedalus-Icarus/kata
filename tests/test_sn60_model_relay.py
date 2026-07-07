@@ -155,6 +155,13 @@ class _RecordingUpstream(BaseHTTPRequestHandler):
                 "body": body,
             }
         )
+        force_status = getattr(self.server, "force_status", None)
+        if force_status is not None:
+            self._reply(
+                force_status,
+                {"error": {"message": "Key limit exceeded (total limit)", "code": force_status}},
+            )
+            return
         if self.headers.get("X-Upstream-Boom") == "yes":
             self._reply(502, {"detail": "upstream boom"})
             return
@@ -298,6 +305,33 @@ def test_inference_budget_survives_interleaved_problem_tokens(
             _post(base + f"/j/{token}/inference", body)
         assert excinfo.value.code == 429
     AGENT_BUDGET.reset()
+
+
+def test_upstream_check_reports_ok_when_reachable(relay_and_upstream) -> None:
+    base, upstream = relay_and_upstream
+    status, body, _ = _post(base + "/healthz/upstream", b"", {"x-inference-api-key": "k"})
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["ok"] is True
+    assert payload["status"] == 200
+    # The probe hits upstream /inference with a cheap max_tokens=1 (not forced up).
+    last = upstream.records[-1]
+    assert last["path"] == "/inference"
+    assert json.loads(last["body"])["max_tokens"] == 1
+
+
+def test_upstream_check_reports_failure_status(relay_and_upstream) -> None:
+    base, upstream = relay_and_upstream
+    upstream.force_status = 403  # simulate OpenRouter "Key limit exceeded"
+    try:
+        status, body, _ = _post(base + "/healthz/upstream", b"", {"x-inference-api-key": "k"})
+    finally:
+        upstream.force_status = None
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["ok"] is False
+    assert payload["status"] == 403
+    assert "limit" in str(payload.get("detail", "")).lower()
 
 
 def test_inference_model_is_pinned_before_reaching_upstream(relay_and_upstream) -> None:
