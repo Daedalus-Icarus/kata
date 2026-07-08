@@ -1,4 +1,4 @@
-from kata.agent_bundle import AGENT_ENTRY_FILENAME, AGENT_MANIFEST_FILENAME
+from kata.submission_system.bundle import AGENT_ENTRY_FILENAME, AGENT_MANIFEST_FILENAME
 
 SUBMISSIONS_DIRNAME = "submissions"
 SUBMISSION_SCHEMA_VERSION = 2

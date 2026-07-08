@@ -6,11 +6,6 @@ import re
 import tempfile
 from pathlib import Path
 
-from kata.agent_bundle import (
-    AGENT_ENTRY_FILENAME,
-    find_unexpected_bundle_paths,
-    is_allowed_bundle_relative_path,
-)
 from kata.ast_utils import (
     find_module_async_function_def,
     find_module_function_def,
@@ -23,6 +18,11 @@ from kata.screening_system.python_ast import (
     agent_main_returns_direct_empty_report,
     dict_contains_string_key,
     iter_non_nested_function_returns,
+)
+from kata.submission_system.bundle import (
+    AGENT_ENTRY_FILENAME,
+    find_unexpected_bundle_paths,
+    is_allowed_bundle_relative_path,
 )
 from kata.util import dedupe
 
@@ -373,7 +373,7 @@ def screen_sn60_static_bundle(bundle_files: dict[str, str]) -> list[ScreeningFin
 
 
 def validate_sn60_static_screening(candidate_root: str | Path) -> list[str]:
-    from kata.agent_bundle import load_bundle_files
+    from kata.submission_system.bundle import load_bundle_files
 
     root = Path(candidate_root).expanduser().resolve()
     return finding_reasons(screen_sn60_static_bundle(load_bundle_files(root)))

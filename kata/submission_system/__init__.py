@@ -53,6 +53,27 @@ from kata.submission_system.validation import (
     validate_submission_metadata,
 )
 
+_WORKFLOW_EXPORTS = {
+    "decide_submission_action",
+    "evaluate_submission",
+    "init_submission",
+    "inspect_pull_request",
+    "is_sn60_miner_metadata",
+    "promote_submission_result",
+    "sn60_lane_benchmark_is_current",
+    "validate_submission",
+    "validate_submission_target",
+    "verify_submission_result",
+}
+
+
+def __getattr__(name: str):
+    if name in _WORKFLOW_EXPORTS:
+        from kata.submission_system import workflow
+
+        return getattr(workflow, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 __all__ = [
     "DEFAULT_AGENT_PLACEHOLDER",
     "PR_ACTION_CLOSE_INVALID",
@@ -80,9 +101,15 @@ __all__ = [
     "default_submission_agent",
     "default_submission_notes",
     "default_submissions_root",
+    "decide_submission_action",
+    "evaluate_submission",
     "infer_submission_dirs",
+    "init_submission",
+    "inspect_pull_request",
+    "is_sn60_miner_metadata",
     "load_submission_metadata",
     "normalize_changed_paths",
+    "promote_submission_result",
     "read_changed_paths_file",
     "read_submission_subnet_pack",
     "render_pull_request_inspection",
@@ -93,9 +120,13 @@ __all__ = [
     "render_submission_verification",
     "required_submission_entrypoint_reason",
     "resolve_submission_descriptor",
+    "sn60_lane_benchmark_is_current",
     "validate_changed_paths",
+    "validate_submission",
     "validate_submission_candidate",
     "validate_submission_metadata",
     "validate_submission_mode",
+    "validate_submission_target",
+    "verify_submission_result",
     "write_submission_metadata",
 ]

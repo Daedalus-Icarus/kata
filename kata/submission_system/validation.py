@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from kata.agent_bundle import is_allowed_bundle_relative_path, load_bundle_files
 from kata.screening_system import ScreeningFinding, screen_submission
 from kata.screening_system.rules import (
     validate_bundle_python_sources,
     validate_bundle_static_policy,
+)
+from kata.submission_system.bundle import (
+    is_allowed_bundle_relative_path,
+    load_bundle_files,
 )
 from kata.submission_system.constants import (
     SUBMISSION_SCHEMA_VERSION,

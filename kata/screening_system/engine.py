@@ -4,7 +4,6 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
-from kata.agent_bundle import load_bundle_files
 from kata.screening_system.benchmark_replay import (
     analyze_benchmark_replay,
     is_concrete_replay_finding,
@@ -19,6 +18,7 @@ from kata.screening_system.rules import (
     screen_submission_bundle_files,
 )
 from kata.screening_system.similarity import screen_current_king_copycat
+from kata.submission_system.bundle import load_bundle_files
 
 STRICT_REPLAY_ENV = "KATA_SCREENING_STRICT_REPLAY"
 REVIEW_MODE_ENV = "KATA_SCREENING_REVIEW_MODE"
