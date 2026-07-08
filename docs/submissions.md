@@ -239,18 +239,17 @@ Examples:
 - Suspicious static report banks.
 - Optional LLM review evidence that supports manual review.
 
-Maintainers can approve a review hold by commenting:
+Maintainer commands:
 
 ```text
-/kata approve
+/kata approve  # approve review, remove kata:review, add kata:pending
+/kata review   # re-run screening/LLM review and post the result
+/kata close    # close the PR
 ```
 
 Approval removes `kata:review` and adds `kata:pending` only if the latest code
 still passes all hard rejection checks. A maintainer cannot approve concrete
 cheating, invalid identity, invalid PR shape, or benchmark-answer replay.
-
-The older `/kata approve-review` command is also accepted, but `/kata approve`
-is the preferred command.
 
 ## What Happens In A Round
 

@@ -45,8 +45,9 @@ pending entrant; a round scores every pending entrant against the king at once.
 5. **Intake.** `kata-bot` screens the PR (shape + cheap static anti-cheat) and labels it
    `kata:pending` — it now waits for the next round. A failing or identity-mismatched
    PR is closed `kata:invalid` before pending. Suspicious but non-conclusive evidence is
-   held as `kata:review`; maintainers can clear it with `/kata approve` after
-   manual review, but hard rejects cannot be bypassed.
+   held as `kata:review`; maintainers can clear it with `/kata approve`,
+   re-run screening with `/kata review`, or close it with `/kata close`, but
+   hard rejects cannot be bypassed.
    Pushing a commit to a benched (`kata:stale`) PR re-enters it as `kata:pending`.
 
 **Round — when a competition round is run (`kata-bot run-round-env`):**
@@ -202,7 +203,8 @@ At the end of a round, each PR resolves to one outcome (and its label):
   one-per-contributor limit; closed.
 - **Review** (`kata:review`) — suspicious but non-conclusive screening evidence; held out
   of rounds until a maintainer approves with `/kata approve` or the miner pushes a
-  clean update. If `KATA_SCREENING_LLM_REVIEW=1` is enabled, a local Codex CLI review
+  clean update. Maintainers can also re-run screening with `/kata review` or close
+  the PR with `/kata close`. If `KATA_SCREENING_LLM_REVIEW=1` is enabled, a local Codex CLI review
   (`KATA_SCREENING_LLM_MODEL=gpt-5.4` by default) may add review evidence and an
   audit artifact, but it never hard-rejects by itself.
 - **Stale** (`kata:stale`) — a kept-open PR that was unchanged since it last competed (same

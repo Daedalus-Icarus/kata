@@ -212,7 +212,7 @@ evaluation. This is implemented today for the live `sn60__bitsec` pack:
 | `kata:reward:xl` | green | Extra-large promotion: at least 8 true positives, or +6 true positives over the king, or at least 85% detection score. |
 | `kata:losing` | grey | Competed but did not beat the king → closed. |
 | `kata:invalid` | red | Failed screening or exceeded the one-open-PR rule → closed. |
-| `kata:review` | gold | Suspicious but non-conclusive screening evidence → held out of rounds until a maintainer approves with `/kata approve` or the miner pushes a clean update. |
+| `kata:review` | gold | Suspicious but non-conclusive screening evidence → held out of rounds until a maintainer approves with `/kata approve`, re-runs screening with `/kata review`, closes it with `/kata close`, or the miner pushes a clean update. |
 | `kata:stale` | orange | Benched: unchanged since it last competed → push to re-enter. |
 | `kata:hold` | purple | Won, but the merge is currently blocked → needs attention. |
 | `kata:mode:miner` | grey | The competition mode (applied on a win). |
