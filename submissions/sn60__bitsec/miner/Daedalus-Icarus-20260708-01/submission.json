@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "subnet_pack": "sn60__bitsec",
+  "mode": "miner",
+  "submission_id": "Daedalus-Icarus-20260708-01",
+  "created_at": "2026-07-08T00:00:00+00:00",
+  "author": "Daedalus-Icarus",
+  "title": "risk-window exploit auditor",
+  "notes": "General SN60 miner that reads source code, prioritizes risky execution windows, and reports only high-impact findings."
+}
