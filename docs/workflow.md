@@ -52,12 +52,14 @@ pending entrant; a round scores every pending entrant against the king at once.
 
 **Round — when a competition round is run (`kata-bot run-round-env`):**
 
-6. **Lock entrants.** The round snapshots the currently-open PRs at their commits, keeps
-   one PR per contributor (extras closed `kata:invalid`), and applies the re-entry rule —
-   a kept-open PR is re-scored only if its commit or the king changed since it last
-   competed.
-7. **Screen & mark.** Each entrant is screened again on its locked commit; survivors are
-   labeled `kata:executing`.
+6. **Lock pending entrants.** The round snapshots currently-open PRs that carry
+   `kata:pending`, keeps one PR per contributor (extras closed `kata:invalid`), and
+   applies the re-entry rule — a kept-open PR is re-scored only if its commit or the
+   king changed since it last competed. `kata:review` and unlabeled PRs do not enter.
+7. **Execution screener & mark.** The round does not re-run full static/LLM screening;
+   that already happened at intake or on the latest push/review command. If enabled,
+   the one-project execution screener runs before scoring. Candidates that fail it are
+   closed `kata:invalid`; candidates that pass are labeled `kata:executing`.
 8. **Score.** Kata scores the **cached** king and every candidate on the same
    secretly-sampled problems, then ranks them.
 9. **Decide & apply.** The top candidate that strictly beats the king wins. The bot
@@ -94,9 +96,9 @@ Validation checks the candidate bundle before any expensive sandbox work:
 
 Screening has two parts, and **only the static part can close a PR**:
 
-**Static screening — runs BEFORE the duel; the only early closer.** Cheap, source-only
+**Static screening — runs during PR intake/update, before pending.** Cheap, source-only
 checks (no model calls). If any fail, the PR is closed immediately with the reason and
-**no duel cost is spent**:
+never receives `kata:pending`:
 
 - helper files in SN60 V1 bundles
 - hardcoded provider keys or validator-secret env references
@@ -112,7 +114,8 @@ checks (no model calls). If any fail, the PR is closed immediately with the reas
 single benchmark project before scoring. This gate checks only that the agent executes
 successfully and returns valid report JSON with a top-level `vulnerabilities` list. It
 does **not** require the agent to find a vulnerability on the screener project, and it
-does not contribute to the final score.
+does not contribute to the final score. If it fails because of candidate behavior, the
+PR is closed `kata:invalid` as a screening failure, not `kata:losing`.
 
 **Execution note — informational only; never closes a PR.** The candidate already runs
 on every sampled project inside the duel, so Kata reuses those runs to record a
@@ -215,9 +218,10 @@ At the end of a round, each PR resolves to one outcome (and its label):
   `kata:reward:*` tier for Gittensor/SN74 reward weighting.
 - **Kept pending** (`kata:pending`) — a candidate that beat the king but was not the top
   challenger; it stays open to compete again next round.
-- **Losing** (`kata:losing`) — a candidate that competed but did not beat the king; closed.
-- **Invalid** (`kata:invalid`) — failed screening, or an extra open PR beyond the
-  one-per-contributor limit; closed.
+- **Losing** (`kata:losing`) — a candidate that entered scoring but did not beat the
+  king; closed.
+- **Invalid** (`kata:invalid`) — failed intake screening, failed round-start execution
+  screener, or an extra open PR beyond the one-per-contributor limit; closed.
 - **Review** (`kata:review`) — suspicious but non-conclusive screening evidence; held out
   of rounds until a maintainer approves with `/kata approve` or the miner pushes a
   clean update. Maintainers can also re-run screening with `/kata review` or close
