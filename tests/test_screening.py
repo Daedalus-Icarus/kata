@@ -10,6 +10,7 @@ from kata.validator_system.screening import (
     SN60_SCREENING_STAGE_EXECUTION,
     SN60_SCREENING_STAGE_STATIC,
     run_sn60_screening,
+    validate_sn60_screening_report,
     validate_sn60_static_screening,
 )
 
@@ -632,6 +633,15 @@ def test_run_sn60_screening_rejects_empty_execution_report(tmp_path: Path) -> No
     assert not result.passed
     assert result.stage == SN60_SCREENING_STAGE_EXECUTION
     assert any("at least one candidate vulnerability" in reason for reason in result.reasons)
+
+
+def test_validate_sn60_screening_report_allows_empty_report_for_execution_gate() -> None:
+    reasons = validate_sn60_screening_report(
+        {"success": True, "report": {"vulnerabilities": []}},
+        require_findings=False,
+    )
+
+    assert reasons == []
 
 
 def test_run_sn60_screening_rejects_thin_finding_description(tmp_path: Path) -> None:

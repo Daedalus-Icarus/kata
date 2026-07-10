@@ -95,6 +95,9 @@ Requirements:
   as a fake agent.
 - A real agent that analyzes the project but happens to find nothing during a
   run is not closed; that project simply scores 0.
+- If the validator enables the optional SN60 screener project, your agent must
+  run successfully and return valid JSON with a top-level `vulnerabilities` list.
+  The screener does not require a finding and does not count toward your score.
 
 ### `agent_manifest.json`
 

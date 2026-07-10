@@ -106,17 +106,24 @@ checks (no model calls). If any fail, the PR is closed immediately with the reas
 - async or non-callable `agent_main`
 - a stub that directly returns `{"vulnerabilities": []}` without doing any analysis
 
-**Execution screening — informational only; never closes a PR.** The candidate already
-runs on every sampled project inside the duel, so Kata reuses those runs (no separate
-screening execution) to record a per-problem findings note — e.g. *"produced findings on
-2/6 problems"* — for feedback. A bad, empty, or unparsable result on a problem is simply
-**scored 0 for that problem**, never a rejection. An agent that finds nothing loses on
-detection; it is not "screened out". A *non-stub* agent that happens to return no
-findings is fine.
+**Optional screener project — runs BEFORE the duel when enabled.** Production can set
+`KATA_SN60_ENABLE_SCREENER_PROJECT=1` and optionally
+`KATA_SN60_SCREENER_PROJECT_KEY=<benchmark-project-id>` to run the candidate once on a
+single benchmark project before scoring. This gate checks only that the agent executes
+successfully and returns valid report JSON with a top-level `vulnerabilities` list. It
+does **not** require the agent to find a vulnerability on the screener project, and it
+does not contribute to the final score.
 
-There is therefore no separate screening sandbox run and no separate screening timeout;
-each agent runs once per project inside the duel, under the normal duel execution
-timeout.
+**Execution note — informational only; never closes a PR.** The candidate already runs
+on every sampled project inside the duel, so Kata reuses those runs to record a
+per-problem findings note — e.g. *"produced findings on 2/7 problems"* — for feedback.
+A bad, empty, or unparsable result on a scored problem is simply **scored 0 for that
+problem**, never a rejection. An agent that finds nothing loses on score; it is not
+"screened out". A *non-stub* agent that happens to return no findings is fine.
+
+When the optional screener is disabled, there is no separate screening sandbox run and
+no separate screening timeout; each agent runs once per selected project inside the
+duel, under the normal duel execution timeout.
 
 ### 3. Round scoring
 
@@ -156,6 +163,8 @@ KATA_SN60_PROJECT_SAMPLE_SIZE=7
 KATA_SN60_PROJECT_SAMPLE_SECRET=<private-validator-secret>
 KATA_SN60_REPLICAS_PER_PROJECT=3
 KATA_SN60_VALIDATOR_REPLICA_COUNT=1
+KATA_SN60_ENABLE_SCREENER_PROJECT=1
+KATA_SN60_SCREENER_PROJECT_KEY=<valid-benchmark-project-id>
 ```
 
 ### 4. Promotion Gate
