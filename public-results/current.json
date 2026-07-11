@@ -1,37 +1,37 @@
 {
-  "schema_version": 1,
-  "updated_at": "2026-07-09T17:30:15Z",
-  "active_pack": "sn60__bitsec",
   "active_mode": "miner",
-  "current_king": {
-    "author": "kiannidev",
-    "submission_id": "kiannidev-20260708-01",
-    "source_pull_request": 98,
-    "path": "kings/sn60__bitsec/miner",
-    "artifact_hash": "c8b24890ba4605afafcd2830ebf27554a71ba3ac4fef190ea29425350b9de84b",
-    "promoted_at": "2026-07-09T16:14:37.777768Z"
-  },
-  "latest_round": {
-    "round_id": "sn60-round-20260709T145405Z-b7ea74",
-    "round_number": 2,
-    "competition_mode": "candidate_only",
-    "started_at": "2026-07-09T14:51:04Z",
-    "finished_at": "2026-07-09T16:14:08Z",
-    "duration_seconds": 4984,
-    "candidate_count": 7,
-    "outcome": "king_promoted",
-    "winner_pull_request": 98,
-    "winner_author": "kiannidev",
-    "winner_submission_id": "kiannidev-20260708-01",
-    "best_true_positives": 4,
-    "best_detection_score": 0.14814814814814814,
-    "proof": "public-results/rounds/sn60-round-20260709T145405Z-b7ea74.json"
-  },
+  "active_pack": "sn60__bitsec",
   "benchmark": {
     "name": "curated-highs-only-2025-08-08.json",
     "round_sha256": "2b0c8b0251d92c36ca341be7168bf1e5660d2ea8da99f99298cae3e3dcdf4855",
     "sandbox_commit": "981c93373b7dc49bde9598173e6fa3bd26acc98e",
     "scorer_version": "ScaBenchScorerV2"
   },
-  "dashboard_url": "https://dashboardking.ngrok.app"
+  "current_king": {
+    "artifact_hash": "a24175dd6d7e5123d812c129f1a6e6f02040175656e66feb1df9a50b847d022a",
+    "author": "Daedalus-Icarus",
+    "path": "kings/sn60__bitsec/miner",
+    "promoted_at": "2026-07-11T01:26:45.209206+00:00",
+    "source_pull_request": 124,
+    "submission_id": "daedalus-Icarus-20260710-01"
+  },
+  "dashboard_url": "https://dashboardking.ngrok.app",
+  "latest_round": {
+    "best_detection_score": 0.2222222222222222,
+    "best_true_positives": 26,
+    "candidate_count": 13,
+    "competition_mode": "king_duel",
+    "duration_seconds": null,
+    "finished_at": "2026-07-11T01:26:16.080537+00:00",
+    "outcome": "king_promoted",
+    "proof": "public-results/rounds/sn60-round-20260710T201843Z-37999a.json",
+    "round_id": "sn60-round-20260710T201843Z-37999a",
+    "round_number": 3,
+    "started_at": null,
+    "winner_author": "Daedalus-Icarus",
+    "winner_pull_request": 124,
+    "winner_submission_id": "daedalus-Icarus-20260710-01"
+  },
+  "schema_version": 1,
+  "updated_at": "2026-07-11T05:37:21.133274+00:00"
 }
