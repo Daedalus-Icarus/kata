@@ -16,12 +16,14 @@ def load_builtin_plugins() -> None:
 
     Importing a plugin package registers it as a side effect; this also re-registers
     defensively so a cleared registry (e.g. in tests) is repaired. Cheap to call
-    repeatedly -- the module import is cached after the first call.
+    repeatedly -- module imports are cached after the first call. Adding a subnet is a
+    new package plus one line here; the core round/scoring logic is untouched.
     """
-    from kata.packages import sn60
+    from kata.packages import sn22, sn60
 
-    if get_plugin_or_none(sn60.SN60_BITSEC_PLUGIN.evaluator_id) is None:
-        register_plugin(sn60.SN60_BITSEC_PLUGIN)
+    for plugin in (sn60.SN60_BITSEC_PLUGIN, sn22.SN22_DESEARCH_PLUGIN):
+        if get_plugin_or_none(plugin.evaluator_id) is None:
+            register_plugin(plugin)
 
 
 def plugin_for_evaluator(evaluator_id: str | None) -> SubnetPlugin | None:
