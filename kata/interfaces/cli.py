@@ -6,11 +6,6 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from kata.packages.sn60.evaluate import evaluate_submission
-from kata.packages.sn60.validator_system import (
-    load_challenge_summary,
-    render_challenge_summary,
-)
 from kata.state_system.lane import (
     LANE_METADATA_SCHEMA_VERSION,
     EvaluatorLaneMetadata,
@@ -292,36 +287,13 @@ def _add_submission_parsers(subparsers) -> None:
         default=None,
         help="Optional base directory for run artifacts. Defaults to ./runs.",
     )
-    submission_evaluate.add_argument(
-        "--sn60-project-key",
-        action="append",
-        default=None,
-        help=(
-            "Optional SN60 Bitsec project key to evaluate. Repeat for multiple "
-            "projects. Defaults to every project_id in the resolved benchmark snapshot."
-        ),
-    )
-    submission_evaluate.add_argument(
-        "--sn60-replicas-per-project",
-        type=int,
-        default=None,
-        help="Optional SN60 replica count per project.",
-    )
-    submission_evaluate.add_argument(
-        "--sn60-sandbox-root",
-        default=None,
-        help="Optional local SN60 sandbox root.",
-    )
-    submission_evaluate.add_argument(
-        "--sn60-benchmark-file",
-        default=None,
-        help="Optional SN60 benchmark JSON file path.",
-    )
-    submission_evaluate.add_argument(
-        "--sn60-sandbox-commit",
-        default=None,
-        help="Optional SN60 sandbox commit identifier.",
-    )
+    # Each subnet plugin contributes its own evaluate arguments (e.g. SN60's --sn60-* flags).
+    from kata.packages.dispatch import load_builtin_plugins
+    from kata.packages.registry import all_plugins
+
+    load_builtin_plugins()
+    for plugin in all_plugins():
+        plugin.add_evaluate_arguments(submission_evaluate)
     submission_evaluate.add_argument(
         "--json",
         action="store_true",
@@ -434,13 +406,16 @@ def _add_round_parser(subparsers) -> None:
 
 
 def handle_king_promote(args: argparse.Namespace) -> int:
-    summary = load_challenge_summary(args.challenge_run)
-    # Default to None (not cwd) so promotion resolves the public root the same
-    # way `verify`/`decide`/`evaluate` do — honoring KATA_ROOT — instead of
-    # silently writing kings/ + lane state into whatever directory it's run in.
+    if not args.submission_path:
+        raise SystemExit(
+            "--submission-path is required: pass the candidate submission directory to promote."
+        )
+    # Default to None (not cwd) so promotion resolves the public root the same way
+    # `verify`/`decide` do — honoring KATA_ROOT — instead of silently writing kings/ +
+    # lane state into whatever directory it's run in.
     public_root = str(Path(args.public_root).expanduser().resolve()) if args.public_root else None
     result = promote_submission_result(
-        args.submission_path or summary.candidate_artifact,
+        args.submission_path,
         args.challenge_run,
         public_root=public_root,
     )
@@ -497,29 +472,21 @@ def handle_submission_inspect(args: argparse.Namespace) -> int:
 
 
 def handle_submission_evaluate(args: argparse.Namespace) -> int:
-    summary = evaluate_submission(
-        args.path,
-        output_root=args.output_root,
-        sn60_project_keys=args.sn60_project_key,
-        sn60_replicas_per_project=args.sn60_replicas_per_project,
-        sn60_sandbox_root=args.sn60_sandbox_root,
-        sn60_benchmark_file=args.sn60_benchmark_file,
-        sn60_sandbox_commit=args.sn60_sandbox_commit,
-    )
-    if args.json:
-        output_base = Path(args.output_root) if args.output_root else Path("runs")
-        payload = {
-            "run_id": summary.run_id,
-            "challenge_summary_path": str(
-                (output_base / summary.run_id / "challenge_summary.json").resolve()
-            ),
-            "promotion_ready": summary.promotion_ready,
-            "promotion_reason": summary.promotion_reason,
-        }
-        print_json(payload)
-    else:
-        print(render_challenge_summary(summary))
-    return 0
+    from kata.submission_system.workflow import plugin_for_submission
+
+    validation = validate_submission(args.path)
+    if not validation.is_valid or validation.metadata is None:
+        raise SystemExit(
+            "Submission is invalid. Run `kata submission validate` first. "
+            + "; ".join(validation.reasons or ["unknown validation failure"])
+        )
+    plugin = plugin_for_submission(validation.metadata)
+    if plugin is None:
+        raise SystemExit(
+            "No subnet plugin is registered for lane "
+            f"`{validation.metadata.repo_pack}/{validation.metadata.mode}`."
+        )
+    return plugin.evaluate_from_cli(args)
 
 
 def handle_submission_verify(args: argparse.Namespace) -> int:
