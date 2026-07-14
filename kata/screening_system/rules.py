@@ -161,6 +161,8 @@ def screen_submission_bundle_files(submission_root: Path) -> list[ScreeningFindi
 def screen_bundle_python_sources(bundle_files: dict[str, str]) -> list[ScreeningFinding]:
     findings: list[ScreeningFinding] = []
     for relative_path, content in sorted(bundle_files.items()):
+        if not relative_path.endswith(".py"):
+            continue  # non-Python bundle data (e.g. sealed_inference_key) is not code
         try:
             ast.parse(content, filename=relative_path)
         except SyntaxError as exc:
@@ -218,6 +220,8 @@ def screen_bundle_static_policy(bundle_files: dict[str, str]) -> list[ScreeningF
     findings: list[ScreeningFinding] = []
     parsed_trees: dict[str, ast.AST] = {}
     for relative_path, content in sorted(bundle_files.items()):
+        if not relative_path.endswith(".py"):
+            continue  # non-Python bundle data (e.g. sealed_inference_key) is not code
         try:
             parsed_trees[relative_path] = ast.parse(content, filename=relative_path)
         except SyntaxError:
