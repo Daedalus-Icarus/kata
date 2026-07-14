@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from kata.screening_system.llm_review import review_suspicious_submission_with_llm
 from kata.screening_system.models import (
     ScreeningDecision,
     ScreeningFinding,
@@ -61,6 +60,29 @@ def _plugin_benchmark_review(
         return [], [], 0.0
     rejects, reviews, score = plugin.benchmark_review(bundle_files, strict=strict)
     return list(rejects), list(reviews), score
+
+
+def _plugin_llm_review(
+    *,
+    submission_root: Path,
+    bundle_files: dict[str, str],
+    decision,
+    repo_pack: str | None,
+    mode: str,
+) -> tuple[list, list]:
+    """Optional subnet LLM review of a suspicious submission from the lane's plugin.
+
+    Returns ``(findings, notes)`` -- both empty for lanes with no plugin or no LLM review.
+    """
+    from kata.packages.dispatch import plugin_for_pack
+
+    plugin = plugin_for_pack(repo_pack, mode)
+    if plugin is None:
+        return [], []
+    findings, notes = plugin.llm_review(
+        submission_root=submission_root, bundle_files=bundle_files, decision=decision
+    )
+    return list(findings), list(notes)
 
 
 def screen_submission(
@@ -122,7 +144,7 @@ def screen_submission(
             notes=notes,
             score=review_score,
         )
-    llm_findings, llm_notes = review_suspicious_submission_with_llm(
+    llm_findings, llm_notes = _plugin_llm_review(
         submission_root=submission_root,
         bundle_files=bundle_files,
         decision=ScreeningDecision(
@@ -130,6 +152,8 @@ def screen_submission(
             review_reasons=review_findings,
             score=review_score,
         ),
+        repo_pack=repo_pack,
+        mode=mode,
     )
     review_findings.extend(llm_findings)
     review_findings = dedupe_findings(review_findings)

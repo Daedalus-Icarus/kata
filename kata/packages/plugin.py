@@ -199,6 +199,13 @@ class SubnetPlugin(ABC):
     def register_cli(self, subparsers) -> None:
         """Contribute this subnet's own top-level ``kata`` subcommands. Default: none."""
 
+    def llm_review(self, *, submission_root, bundle_files, decision):
+        """Optional subnet LLM review of a suspicious submission.
+
+        Returns ``(findings, notes)``. Default: none.
+        """
+        return [], []
+
     def add_round_arguments(self, parser) -> None:
         """Register this subnet's ``kata round`` CLI arguments. Default: none."""
 

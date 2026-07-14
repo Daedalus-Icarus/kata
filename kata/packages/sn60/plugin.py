@@ -262,6 +262,15 @@ class Sn60BitsecPlugin(SubnetPlugin):
 
         return sn60_benchmark_review(bundle_files, strict=strict)
 
+    def llm_review(self, *, submission_root, bundle_files, decision):
+        from kata.packages.sn60.llm_review import review_suspicious_submission_with_llm
+
+        return review_suspicious_submission_with_llm(
+            submission_root=submission_root,
+            bundle_files=bundle_files,
+            decision=decision,
+        )
+
     def register_cli(self, subparsers) -> None:
         from kata.packages.sn60.cli import register_sn60_cli
 

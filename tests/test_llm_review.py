@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from kata.screening_system.llm_review import (
+from kata.packages.sn60.llm_review import (
     LlmCommandResult,
     parse_llm_review_json,
     review_suspicious_submission_with_llm,

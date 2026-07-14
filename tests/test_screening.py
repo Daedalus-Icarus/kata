@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from kata.packages.sn60.llm_review import resolve_llm_benchmark_file
 from kata.packages.sn60.sn60_bitsec import Sn60ReplicaContext, resolve_sn60_sandbox_source
 from kata.packages.sn60.validator_system.screening import (
     SN60_SCREENING_STAGE_EXECUTION,
@@ -12,7 +13,6 @@ from kata.packages.sn60.validator_system.screening import (
     validate_sn60_static_screening,
 )
 from kata.screening_system import screen_submission
-from kata.screening_system.llm_review import resolve_llm_benchmark_file
 from kata.screening_system.models import ScreeningFinding
 from kata.screening_system.rules import (
     MAX_SUBMISSION_BUNDLE_BYTES,
@@ -567,7 +567,7 @@ def test_screen_submission_attaches_llm_review_for_review_findings(
         )
 
     monkeypatch.setattr(
-        "kata.screening_system.engine.review_suspicious_submission_with_llm",
+        "kata.packages.sn60.llm_review.review_suspicious_submission_with_llm",
         fake_llm_review,
     )
 
