@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from kata.screening_system.sandbox_canary import rename_source_tree
+from kata.packages.sn60.sandbox_canary import rename_source_tree
 
 
 def test_rename_source_tree_renames_source_and_copies_the_rest(tmp_path: Path) -> None:

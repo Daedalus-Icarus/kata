@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from kata.screening_system.benchmark_replay import (
+from kata.packages.sn60.benchmark_replay import (
     analyze_benchmark_replay,
     is_concrete_replay_finding,
 )
