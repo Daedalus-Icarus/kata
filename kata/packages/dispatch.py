@@ -1,8 +1,9 @@
-"""Resolve the subnet plugin for a submission/lane (Phase 4 of the refactor).
+"""Resolve the subnet plugin for a submission/lane.
 
-The core dispatches by ``evaluator_id`` -- the same id the lane registry records --
-without importing any subnet package directly. Built-in plugins are loaded lazily so
-importing this module stays cheap and cycle-free.
+The core dispatches by ``evaluator_id`` -- the same id the lane registry records -- and
+never imports any subnet package by name. Subnet plugins are discovered via the
+``kata.subnets`` entry-point group, so adding a subnet is installing a package that declares
+the entry point (no code change here).
 """
 
 from __future__ import annotations
@@ -12,16 +13,16 @@ from kata.packages.registry import all_plugins, get_plugin_or_none, register_plu
 
 
 def load_builtin_plugins() -> None:
-    """Ensure the built-in subnet plugins are registered.
+    """Discover and register every installed subnet plugin via entry points.
 
-    Importing a plugin package registers it as a side effect; this also re-registers
-    defensively so a cleared registry (e.g. in tests) is repaired. Cheap to call
-    repeatedly -- module imports are cached after the first call. Adding a subnet is a
-    new package plus one line here; the core round/scoring logic is untouched.
+    Each subnet package advertises its ``SubnetPlugin`` singleton under the
+    ``kata.subnets`` entry-point group; this loads all installed ones and registers them.
+    Idempotent and cheap to call repeatedly (repairs a cleared registry, e.g. in tests).
     """
-    from kata.packages import sn22, sn60
+    from importlib.metadata import entry_points
 
-    for plugin in (sn60.SN60_BITSEC_PLUGIN, sn22.SN22_DESEARCH_PLUGIN):
+    for entry_point in entry_points(group="kata.subnets"):
+        plugin = entry_point.load()
         if get_plugin_or_none(plugin.evaluator_id) is None:
             register_plugin(plugin)
 

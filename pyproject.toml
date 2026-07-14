@@ -23,6 +23,13 @@ dev = [
 kata = "kata.interfaces.cli:main"
 kata-sn60-model-relay = "kata.packages.sn60.validator_system.model_relay:main"
 
+# Subnet plugins are discovered via this entry-point group. A subnet package (in-repo today,
+# its own repo tomorrow) declares one entry pointing at its SubnetPlugin singleton; the core
+# loads every installed one with no code change. See kata/packages/dispatch.py.
+[project.entry-points."kata.subnets"]
+sn60 = "kata.packages.sn60:SN60_BITSEC_PLUGIN"
+sn22 = "kata.packages.sn22:SN22_DESEARCH_PLUGIN"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
