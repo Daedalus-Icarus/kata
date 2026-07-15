@@ -11,7 +11,7 @@ For the exact miner bundle contract, see [submissions.md](submissions.md).
   (the cached king vs. all candidates on the same problems), ranks them, records
   provenance, and promotes winners.
 - `kata-bot` is the GitHub automation layer. On a PR event it **intakes** the PR
-  (screen into `kata:pending`, `kata:hold`, or `kata:invalid`). When a **round** is run, it locks the pending PRs,
+  (screen into `kata:pending`, `kata:review`, or `kata:invalid`). When a **round** is run, it locks the pending PRs,
   gates and screens them, calls the engine to score them, applies the outcome labels,
   and merges + promotes the winner. It publishes a live round status and history for
   the dashboard.
@@ -39,7 +39,7 @@ pending entrant; a round scores every pending entrant against the king at once.
 5. **Intake.** `kata-bot` screens the PR (shape + cheap static anti-cheat) and labels it
    `kata:pending` — it now waits for the next round. A failing or identity-mismatched
    PR is closed `kata:invalid` before pending. Suspicious but non-conclusive evidence is
-   held as `kata:hold` and cannot score yet. A clean push can re-enter screening.
+   held as `kata:review` and cannot score yet. A clean push can re-enter screening.
    Hard rejects cannot be bypassed.
    Pushing a commit to a benched (`kata:stale`) PR re-enters it as `kata:pending`.
 
@@ -48,7 +48,7 @@ pending entrant; a round scores every pending entrant against the king at once.
 6. **Lock pending entrants.** The round snapshots currently-open PRs that carry
    `kata:pending`, keeps one PR per contributor (extras closed `kata:invalid`), and
    applies the re-entry rule — a kept-open PR is re-scored only if its commit or the
-   king changed since it last competed. `kata:hold` and unlabeled PRs do not enter.
+   king changed since it last competed. `kata:review`, `kata:hold`, and unlabeled PRs do not enter.
 7. **Execution screener & mark.** The round does not re-run full static/LLM screening;
    that already happened at intake or on the latest push/review command. If enabled,
    the one-project execution screener runs before scoring. Candidates that fail it are
@@ -193,10 +193,12 @@ At the end of a round, each PR resolves to one outcome (and its label):
   king; closed.
 - **Invalid** (`kata:invalid`) — failed intake screening, failed round-start execution
   screener, or an extra open PR beyond the one-per-contributor limit; closed.
-- **Hold** (`kata:hold`) — Kata needs human attention before the PR can continue. This
-  includes suspicious but non-conclusive screening evidence and merge/promotion safety holds.
+- **Review** (`kata:review`) — suspicious but non-conclusive screening evidence; held out
+  of rounds until review clears it or the miner pushes a clean update.
 - **Stale** (`kata:stale`) — a kept-open PR that was unchanged since it last competed (same
   commit and same king), so it is skipped this round; a push re-enters it as pending.
+- **Hold** (`kata:hold`) — a winner whose merge or promotion is currently blocked; held for
+  attention rather than merging into a broken state.
 - **Defeat** (`kata:defeat:<subnet-pack>`) — a former king replaced by a later winner in the
   same subnet. The old winner label is removed before this label is applied.
 

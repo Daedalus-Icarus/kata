@@ -239,8 +239,9 @@ evaluation. This is implemented today for the live `sn60__bitsec` target:
 | `kata:executing` | yellow | Competing in the round that is running now. |
 | `kata:losing` | grey | Competed but did not beat the king → closed. |
 | `kata:invalid` | red | Failed screening or exceeded the one-open-PR rule → closed. |
+| `kata:review` | gold | Suspicious but non-conclusive screening evidence → held out of rounds until review clears it or the miner pushes a clean update. |
 | `kata:stale` | orange | Benched: unchanged since it last competed → push to re-enter. |
-| `kata:hold` | purple | Needs human attention before it can continue, such as a screening or promotion safety hold. |
+| `kata:hold` | purple | Won, but merge or promotion is currently blocked → needs attention. |
 | `kata:winner:<subnet-pack>` | green | Beat the king → merged and promoted for that subnet. |
 | `kata:defeat:<subnet-pack>` | maroon | A former king was replaced in that subnet. |
 

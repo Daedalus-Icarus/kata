@@ -227,8 +227,8 @@ not allowed.
 
 ## What Gets Held For Review
 
-Suspicious but non-conclusive evidence is labeled `kata:hold`, not
-`kata:pending`. A PR with `kata:hold` cannot enter a round.
+Suspicious but non-conclusive evidence is labeled `kata:review`, not
+`kata:pending`. A PR with `kata:review` cannot enter a round.
 
 Examples:
 
@@ -277,15 +277,15 @@ Promotion comparison order:
 ## Labels You May See
 
 - `kata:pending`: screened and waiting for the next round.
+- `kata:review`: held for screening review; cannot enter a round yet.
 - `kata:executing`: currently competing in a round.
-- `kata:hold`: needs human attention before it can continue.
+- `kata:hold`: won, but merge/promotion needs attention.
 - `kata:winner:<subnet-pack>`: merged and promoted to king for that subnet.
 - `kata:defeat:<subnet-pack>`: a former king that was replaced in that subnet.
 - `kata:losing`: competed but did not beat the king.
 - `kata:invalid`: failed screening or one-open-PR rule.
 - `kata:stale`: skipped because the PR commit and king were unchanged since the
   last time it competed.
-- `kata:hold`: won, but merge/promotion needs attention.
 
 ## Local Commands
 
