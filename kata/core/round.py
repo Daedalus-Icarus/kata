@@ -1,4 +1,4 @@
-"""Subnet-agnostic round orchestrator (Phase 3 of the multi-subnet refactor).
+"""Subnet-agnostic round orchestrator.
 
 This is the core King-of-the-Hill round, driven entirely through the
 :class:`SubnetPlugin` interface: sample the problems, score the king once, score each
@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cmp_to_key
 
-from kata.packages.plugin import (
+from kata.plugins.contract import (
     ProblemSet,
     ProgressUpdate,
     RunContext,

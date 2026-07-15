@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kata.screening_system.rules import screen_bundle_static_policy
+from kata.screening.rules import screen_bundle_static_policy
 
 
 def _agent(source: str) -> dict[str, str]:

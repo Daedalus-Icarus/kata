@@ -7,7 +7,7 @@ installed; discovery-with-a-real-subnet is tested in the subnet repos (e.g. kata
 
 from __future__ import annotations
 
-from kata.packages.dispatch import load_builtin_plugins, plugin_for_evaluator
+from kata.plugins.discovery import load_builtin_plugins, plugin_for_evaluator
 
 
 def test_load_builtin_plugins_no_subnet_installed_is_noop() -> None:

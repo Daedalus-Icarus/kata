@@ -3,16 +3,20 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from kata.submission_system import (
-    SUBMISSIONS_DIRNAME,
-    SubmissionDescriptor,
-    SubmissionMetadata,
+from kata.submissions.constants import SUBMISSIONS_DIRNAME
+from kata.submissions.layout import (
     load_submission_metadata,
     normalize_changed_paths,
     resolve_submission_descriptor,
+    write_submission_metadata,
+)
+from kata.submissions.models import (
+    SubmissionDescriptor,
+    SubmissionMetadata,
+)
+from kata.submissions.validation import (
     validate_changed_paths,
     validate_submission_metadata,
-    write_submission_metadata,
 )
 
 
@@ -77,9 +81,7 @@ def test_changed_path_validation_requires_single_bundle_scope(tmp_path: Path) ->
     )
 
     assert "kata/cli.py" in result.off_scope_paths
-    assert result.reasons == [
-        "Submission PR touches paths outside the allowed submission scope."
-    ]
+    assert result.reasons == ["Submission PR touches paths outside the allowed submission scope."]
 
 
 def test_validate_submission_metadata_detects_descriptor_mismatch() -> None:

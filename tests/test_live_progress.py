@@ -4,7 +4,7 @@ import json
 import stat
 from pathlib import Path
 
-from kata.state_system.live_progress import update_live_status
+from kata.state.progress import update_live_status
 
 
 def test_update_live_status_merges_flat_and_nested_keys(
@@ -14,9 +14,7 @@ def test_update_live_status_merges_flat_and_nested_keys(
     status_path = tmp_path / "live-status.json"
     monkeypatch.setenv("KATA_LIVE_STATUS_PATH", str(status_path))
 
-    update_live_status(
-        {"state": "screening", "phase": "sn60-screening", "lane_id": "sn60__bitsec"}
-    )
+    update_live_status({"state": "screening", "phase": "sn60-screening", "lane_id": "sn60__bitsec"})
     update_live_status(
         {
             "state": "evaluating",

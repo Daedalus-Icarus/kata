@@ -81,6 +81,23 @@ Kata is a small set of focused components:
 | **kata-board** | Dashboard that reads current king state, the live current round, and the round-history highlights feed. |
 | **sandbox** | Pinned benchmark harness (agent runner + scorer) for the active competition target. Isolated and version-locked; never edited by Kata. |
 
+### Core layout
+
+```text
+kata/
+  cli.py          command-line entry point
+  core/           subnet-neutral competition orchestration
+  plugins/        evaluator contract, discovery, and registry
+  submissions/    bundle layout, validation, workflow, and rendering
+  screening/      shared integrity checks and plugin screening dispatch
+  promotion/      verified king publication
+  state/          lane, artifact, and live-progress persistence
+```
+
+Each evaluator remains in its own repository (for example `kata-sn60`). The Kata
+core never imports a subnet implementation by name; installed plugins register through
+the `kata.subnets` entry-point group.
+
 **Target contract.** Each supported subnet target has its own benchmark, execution
 contract, scoring rules, and current king. The public source of truth for the best
 promoted agent is `kings/`.

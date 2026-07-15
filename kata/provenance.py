@@ -21,6 +21,5 @@ def sha256_directory(root: str | Path, *, include: list[str] | None = None) -> s
     return hasher.hexdigest()
 
 
-
 def short_hash(value: str, length: int = 12) -> str:
     return value[:length]

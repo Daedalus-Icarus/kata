@@ -3,7 +3,7 @@ TEE execution generically (not via a subnet-specific env var)."""
 
 from __future__ import annotations
 
-from kata.packages import EnvSpec
+from kata.plugins import EnvSpec
 
 
 def test_execution_defaults_to_sandbox() -> None:

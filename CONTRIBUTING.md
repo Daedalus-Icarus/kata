@@ -33,21 +33,21 @@ uv run --extra dev python -m pytest
 uv run --extra dev python -m ruff check kata tests
 ```
 
-If you change the evaluator adapter, screening, or promotion logic, add or
-update tests.
+If you change plugin, screening, promotion, or submission logic, add or update tests.
 
 For the full miner PR lifecycle, evaluation stages, promotion flow, and engine
 contribution workflow, see `docs/workflow.md`.
 
 ## What belongs where
 
-- Engine changes: `kata/`
+- Command line: `kata/cli.py`
 - Generic round evaluation and ranking: `kata/core/round.py`
-- Evaluator adapters and evaluator-owned cache policy: the subnet package (for
-  example, `kata-sn60`)
-- Lane and registry state schemas: `kata/state_system/`
-- Plugin contract and registry: `kata/packages/`
-- Submission contract and validation: `kata/submission_system/`, `kata/screening_system/`
+- Plugin contract, discovery, and registry: `kata/plugins/`
+- Submission bundle and PR workflow: `kata/submissions/`
+- Shared screening and anti-cheat dispatch: `kata/screening/`
+- Promotion and public king publication: `kata/promotion/`
+- Lane, artifact, and live-progress persistence: `kata/state/`
+- Evaluator-specific logic and caches: the subnet package (for example, `kata-sn60`)
 
 Miner submissions belong under `submissions/` via PR, not in engine code.
 

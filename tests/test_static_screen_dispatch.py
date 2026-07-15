@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from kata.packages import (
+from kata.plugins import (
     EnvSpec,
     ScoreCard,
     ScoringProfile,
@@ -20,8 +20,8 @@ from kata.packages import (
     clear_registry,
     register_plugin,
 )
-from kata.packages.dispatch import load_builtin_plugins
-from kata.screening_system.engine import _plugin_static_screen_findings
+from kata.plugins.discovery import load_builtin_plugins
+from kata.screening.engine import _plugin_static_screen_findings
 
 
 class _ScreeningPlugin(SubnetPlugin):
@@ -81,8 +81,5 @@ def test_static_screen_noop_for_unknown_or_missing_lane(tmp_path: Path) -> None:
     )
     # No repo_pack -> no dispatch at all.
     assert (
-        _plugin_static_screen_findings(
-            submission_root=tmp_path, repo_pack=None, mode="miner"
-        )
-        == []
+        _plugin_static_screen_findings(submission_root=tmp_path, repo_pack=None, mode="miner") == []
     )

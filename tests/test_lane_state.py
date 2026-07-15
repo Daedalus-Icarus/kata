@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from kata.state_system.lane import (
+from kata.state.lanes import (
     BENCHMARK_SNAPSHOT_SCHEMA_VERSION,
     CHALLENGE_STATE_SCHEMA_VERSION,
     KING_STATE_SCHEMA_VERSION,
@@ -263,8 +263,9 @@ def test_write_lane_metadata_registers_pack_in_central_registry(tmp_path: Path) 
     assert registry_path == resolve_lanes_root(str(tmp_path)) / "registry.json"
     assert registry_path.exists()
     lane_payload = json.loads(
-        (resolve_lane_root("sn60__bitsec", public_root=str(tmp_path)) / "lane.json")
-        .read_text(encoding="utf-8")
+        (resolve_lane_root("sn60__bitsec", public_root=str(tmp_path)) / "lane.json").read_text(
+            encoding="utf-8"
+        )
     )
     registry_payload = json.loads(registry_path.read_text(encoding="utf-8"))
     assert lane_payload["subnet_pack"] == "sn60__bitsec"
@@ -304,9 +305,7 @@ def test_lane_discovery_uses_registry_only(tmp_path: Path) -> None:
 def test_registry_upsert_updates_active_flag_without_duplicates(tmp_path: Path) -> None:
     write_lane_metadata(build_lane_metadata("sn60__bitsec"), public_root=str(tmp_path))
     write_lane_metadata(
-        build_lane_metadata(
-            "sn60__bitsec", active=False, updated_at="2026-07-02T00:00:00+00:00"
-        ),
+        build_lane_metadata("sn60__bitsec", active=False, updated_at="2026-07-02T00:00:00+00:00"),
         public_root=str(tmp_path),
     )
 

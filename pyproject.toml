@@ -17,12 +17,12 @@ dev = [
 ]
 
 [project.scripts]
-kata = "kata.interfaces.cli:main"
+kata = "kata.cli:main"
 
 # Subnet plugins are discovered via the ``kata.subnets`` entry-point group: each subnet package
 # (its own repo, e.g. kata-sn60, kata-sn22) declares one entry pointing at its SubnetPlugin
 # singleton, and the core loads every installed one with no code change. See
-# kata/packages/dispatch.py. kata itself declares no subnet.
+# kata/plugins/discovery.py. kata itself declares no subnet.
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
