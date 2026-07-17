@@ -35,10 +35,10 @@ AUDIT_MAX_TOKENS = int(os.environ.get("AGENT_MAX_TOKENS", "4000"))
 REQUEST_TIMEOUT = int(os.environ.get("AGENT_HTTP_TIMEOUT", "150"))
 CONCURRENCY = max(1, int(os.environ.get("AGENT_CONCURRENCY", "4")))
 INFERENCE_RETRIES = max(0, int(os.environ.get("AGENT_INFERENCE_RETRIES", "1")))
-# Empty model => let the room's inference proxy pick its default (the approved
-# model bound to the sealed key). Set AGENT_INFERENCE_MODEL only if you know the
-# room accepts it, otherwise an unknown model id fails the call.
-MODEL = os.environ.get("AGENT_INFERENCE_MODEL", "").strip()
+MODEL = os.environ.get("AGENT_INFERENCE_MODEL", "deepseek-ai/DeepSeek-V3.2").strip()
+SEND_REASONING = os.environ.get("AGENT_SEND_REASONING", "").strip().lower() in {
+    "1", "true", "yes", "on",
+}
 
 # Build/dependency/test trees rarely hold the audited contract's own logic and
 # would only burn inference budget, so they are skipped when walking sources.
@@ -124,14 +124,15 @@ def _call_inference(endpoint: str, messages: list[dict[str, str]], max_tokens: i
     payload: dict[str, object] = {
         "messages": messages,
         "max_tokens": max_tokens,
-        # Ask the provider to return the final answer directly. Without this some
-        # reasoning models spend the whole token budget "thinking" and the JSON
-        # answer gets truncated, yielding zero parseable findings.
-        "reasoning": {"exclude": True},
         "temperature": 0,
     }
     if MODEL:
         payload["model"] = MODEL
+    if SEND_REASONING:
+        # Ask the provider to return the final answer directly so a reasoning
+        # model does not spend the whole token budget "thinking" and truncate the
+        # JSON. Only sent when the provider is known to accept the field.
+        payload["reasoning"] = {"exclude": True}
     body = json.dumps(payload).encode("utf-8")
     headers = {
         "Content-Type": "application/json",
